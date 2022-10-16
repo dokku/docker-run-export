@@ -12,9 +12,10 @@ go build
 
 ## Formats supported
 
-- docker-compose.yml 3.7 (WIP)
-- nomad-job.json (planned)
-- kubernetes deployment.yml (planned)
+- `docker-compose.yml` 3.7 (WIP)
+- nomad `job.json` (planned)
+- kubernetes `deployment.yml` (planned)
+- ecs `task-definition.json` (planned)
 
 ## Usage
 
