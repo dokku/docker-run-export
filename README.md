@@ -49,7 +49,11 @@ services:
     image: alpine:latest
 ```
 
-Non-docker run supported flags:
+Non `docker run` supported flags:
 
 - `dre-project`: the project name
 - `dre-format`: the format to export as
+
+Unsupported `docker run` flags:
+
+- `-h`: (hostname) detected as help. Use `--hostname` instead.
