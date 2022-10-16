@@ -219,7 +219,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.HealthInterval != "0s" {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-interval property in compose spec as the rate must be validated and parsed"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-interval property in compose spec as the interval must be validated and parsed"))
 		// todo: parse string to duration
 		// service.HealthCheck.Interval = c.HealthInterval
 	}
@@ -229,13 +229,13 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.HealthStartPeriod != "0s" {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-start-period property in compose spec as the rate must be validated and parsed"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-start-period property in compose spec as the start period must be validated and parsed"))
 		// todo: parse string to duration
 		// service.HealthCheck.StartPeriod = c.HealthStartPeriod
 	}
 
 	if c.HealthTimeout != "0s" {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-timeout property in compose spec as the rate must be validated and parsed"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-timeout property in compose spec as the timeout must be validated and parsed"))
 		// todo: parse string to duration
 		// service.HealthCheck.Timeout = c.HealthTimeout
 	}
@@ -298,6 +298,17 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 			}
 		}
 	}
+
+	service.MacAddress = c.Mac
+	service.MemReservation = types.UnitBytes(c.MemoryReservation)
+	service.MemSwapLimit = types.UnitBytes(c.MemorySwap)
+	service.MemSwappiness = types.UnitBytes(c.MemorySwappiness)
+
+	if len(c.Mount) > 0 {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --mount property in compose spec as the mounts must be validated and parsed"))
+	}
+
+	service.ContainerName = c.ContainerName
 
 	if len(arguments["command"].ListValue()) > 0 {
 		service.Command = arguments["command"].ListValue()
