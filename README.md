@@ -14,6 +14,7 @@ go build
 
 - docker-compose.yml 3.7 (WIP)
 - nomad-job.json (planned)
+- kubernetes deployment.yml (planned)
 
 ## Usage
 
