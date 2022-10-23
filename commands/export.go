@@ -144,7 +144,7 @@ func (c *ExportCommand) FlagSet() *flag.FlagSet {
 	f.StringVar(&c.Isolation, "isolation", "", "Container isolation technology")
 	f.StringVar(&c.LogDriver, "log-driver", "", "Logging driver for the container")
 	f.StringVar(&c.Mac, "mac-address", "", "Container MAC address (e.g., 92:d0:c6:0a:29:33)")
-	f.StringVar(&c.Mount, "mount", "", "Attach a filesystem mount to the container")
+	f.StringArrayVar(&c.Mount, "mount", []string{}, "Attach a filesystem mount to the container")
 	f.StringVar(&c.ContainerName, "name", "", "Assign a name to the container")
 	f.StringVar(&c.Network, "network", "", "Connect a container to a network")
 	f.StringVar(&c.Pid, "pid", "", "PID namespace to use")

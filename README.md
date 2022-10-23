@@ -88,5 +88,8 @@ Requires parsing and may be supported in the future:
 
 - `--device-read-bps`
 - `--device-write-bps`
-- `--mount`
 - `--ulimit`
+
+Partially implemented:
+
+- `--mount`: missing type-specific options for bind/tmpfs/volume types

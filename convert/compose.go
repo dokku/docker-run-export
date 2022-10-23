@@ -394,6 +394,58 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	service.MemSwappiness = types.UnitBytes(c.MemorySwappiness)
 
 	if len(c.Mount) > 0 {
+		for _, value := range c.Mount {
+			data := map[string]string{}
+			for _, part := range strings.Split(value, ",") {
+				k, v := transformValueToMapEntry(part, "=")
+				data[k] = v
+			}
+
+			volume := types.ServiceVolumeConfig{}
+			if v, ok := data["type"]; ok {
+				volume.Type = v
+			}
+			for _, key := range []string{"src", "source"} {
+				if v, ok := data[key]; ok {
+					if volume.Type == "tmpfs" {
+						errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag to volume: invalid source value for tmpfs: %s", value))
+					} else {
+						volume.Source = v
+					}
+				}
+			}
+			for _, key := range []string{"dst", "destination", "target"} {
+				if v, ok := data[key]; ok {
+					volume.Target = v
+				}
+			}
+
+			for _, key := range []string{"readonly", "ro"} {
+				if v, ok := data[key]; ok {
+					roMap := map[string]bool{
+						"false": false,
+						"true":  true,
+						"0":     false,
+						"1":     true,
+					}
+					volume.ReadOnly = roMap[v]
+				}
+			}
+
+			// todo: implement the following options
+			// https://docs.docker.com/engine/reference/commandline/service_create/#add-bind-mounts-volumes-or-memory-filesystems
+			// - bind-propagation
+			// - consistency
+			// - bind-nonrecursive
+			// - volume-driver
+			// - volume-label
+			// - volume-nocopy
+			// - volume-opt
+			// - tmpfs-size
+			// - tmpfs-mode
+			service.Volumes = append(service.Volumes, volume)
+
+		}
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --mount property in compose spec as the mounts must be validated and parsed"))
 	}
 
@@ -677,5 +729,16 @@ func transformSize(value interface{}) (int64, error) {
 		return units.RAMInBytes(value)
 	default:
 		return 0, fmt.Errorf("invalid type for size %T", value)
+	}
+}
+
+func transformValueToMapEntry(value string, separator string) (string, string) {
+	parts := strings.SplitN(value, separator, 2)
+	key := parts[0]
+	switch {
+	case len(parts) == 1:
+		return key, ""
+	default:
+		return key, parts[1]
 	}
 }

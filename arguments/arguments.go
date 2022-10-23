@@ -61,7 +61,7 @@ type Args struct {
 	MemoryReservation   int64
 	MemorySwap          int64
 	MemorySwappiness    int64
-	Mount               string
+	Mount               []string
 	ContainerName       string
 	Network             string
 	NetworkAlias        []string
