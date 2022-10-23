@@ -237,7 +237,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 			if err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-cmd flag to slice: %w", err))
 			} else {
-				if service.BlkioConfig == nil {
+				if service.HealthCheck == nil {
 					service.HealthCheck = &types.HealthCheckConfig{}
 				}
 
@@ -250,7 +250,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		if c.NoHealthcheck {
 			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-interval  as --no-healthcheck is specified"))
 		} else {
-			if service.BlkioConfig == nil {
+			if service.HealthCheck == nil {
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
@@ -264,7 +264,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		if c.NoHealthcheck {
 			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-retries  as --no-healthcheck is specified"))
 		} else {
-			if service.BlkioConfig == nil {
+			if service.HealthCheck == nil {
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
@@ -276,7 +276,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		if c.NoHealthcheck {
 			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-start-period  as --no-healthcheck is specified"))
 		} else {
-			if service.BlkioConfig == nil {
+			if service.HealthCheck == nil {
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
@@ -290,7 +290,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		if c.NoHealthcheck {
 			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-timeout  as --no-healthcheck is specified"))
 		} else {
-			if service.BlkioConfig == nil {
+			if service.HealthCheck == nil {
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
@@ -408,7 +408,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.NoHealthcheck {
-		if service.BlkioConfig == nil {
+		if service.HealthCheck == nil {
 			service.HealthCheck = &types.HealthCheckConfig{}
 		}
 
