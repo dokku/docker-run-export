@@ -454,10 +454,6 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --publish-all property in compose spec as the property is not valid in compose v3"))
 	}
 
-	if c.PublishAll {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --publish-all property in compose spec as the property is not valid in compose v3"))
-	}
-
 	if c.Pull != "missing" {
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --pull property in compose spec as images will always be pulled if missing"))
 	}
