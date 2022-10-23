@@ -89,5 +89,4 @@ Requires parsing and may be supported in the future:
 - `--device-read-bps`
 - `--device-write-bps`
 - `--mount`
-- `--tmpfs`
 - `--ulimit`

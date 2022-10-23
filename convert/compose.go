@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compose-spec/compose-go/types"
+	"github.com/docker/go-units"
 	"github.com/hashicorp/go-multierror"
 	"github.com/josegonzalez/cli-skeleton/command"
 	"github.com/mattn/go-shellwords"
@@ -514,7 +515,34 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.Tmpfs) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --tmpfs property in compose spec as the property must be validated and parsed"))
+		for _, value := range c.Tmpfs {
+			parts := strings.SplitN(value, ":", 2)
+			if len(parts) != 2 {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --tmpfs flag as volume: invalid value %s", c.Tmpfs))
+			} else {
+				volume := types.ServiceVolumeConfig{
+					Target: parts[0],
+					Type:   "tmpfs",
+					Tmpfs: &types.ServiceVolumeTmpfs{
+						Size: types.UnitBytes(1024),
+					},
+				}
+
+				options := strings.Split(parts[1], ",")
+				for _, option := range options {
+					if strings.HasPrefix(option, "size=") {
+						size := strings.TrimPrefix(option, "size=")
+						bytes, err := transformSize(size)
+						if err != nil {
+							errs = multierror.Append(errs, fmt.Errorf("unable to parse --tmpfs flag as volume: %w", err))
+						} else {
+							volume.Tmpfs.Size = types.UnitBytes(bytes)
+						}
+					}
+				}
+				service.Volumes = append(service.Volumes, volume)
+			}
+		}
 	}
 
 	if c.Tty {
@@ -636,5 +664,20 @@ func transformStringToDuration(value interface{}) (interface{}, error) {
 		return value, nil
 	default:
 		return value, fmt.Errorf("invalid type %T for duration", value)
+	}
+}
+
+func transformSize(value interface{}) (int64, error) {
+	switch value := value.(type) {
+	case int:
+		return int64(value), nil
+	case int64:
+		return int64(value), nil
+	case types.UnitBytes:
+		return int64(value), nil
+	case string:
+		return units.RAMInBytes(value)
+	default:
+		return 0, fmt.Errorf("invalid type for size %T", value)
 	}
 }
