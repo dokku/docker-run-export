@@ -35,13 +35,19 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --attach property in compose output"))
 	}
 
-	// todo: figure out how to set BlkioConfig only if there are properties to be set
-	service.BlkioConfig = &types.BlkioConfig{}
 	if c.BlkioWeight != 0 {
+		if service.BlkioConfig == nil {
+			service.BlkioConfig = &types.BlkioConfig{}
+		}
+
 		service.BlkioConfig.Weight = uint16(c.BlkioWeight)
 	}
 
 	if len(c.BlkioWeightDevice) > 0 {
+		if service.BlkioConfig == nil {
+			service.BlkioConfig = &types.BlkioConfig{}
+		}
+
 		service.BlkioConfig.WeightDevice = []types.WeightDevice{}
 		for _, weightDevice := range c.BlkioWeightDevice {
 			parts := strings.SplitN(weightDevice, ":", 2)
@@ -55,6 +61,10 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.DeviceReadBps) > 0 {
+		if service.BlkioConfig == nil {
+			service.BlkioConfig = &types.BlkioConfig{}
+		}
+
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --device-write-bps property in compose spec as the rate must be validated and parsed"))
 		service.BlkioConfig.DeviceReadBps = []types.ThrottleDevice{}
 		// todo: parse parts[1] into a rate (bytes uint64) from string kb|mb|gb and set it
@@ -69,6 +79,10 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.DeviceWriteBps) > 0 {
+		if service.BlkioConfig == nil {
+			service.BlkioConfig = &types.BlkioConfig{}
+		}
+
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --device-write-bps property in compose spec as the rate must be validated and parsed"))
 
 		service.BlkioConfig.DeviceWriteBps = []types.ThrottleDevice{}
@@ -84,6 +98,10 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.DeviceReadIops) > 0 {
+		if service.BlkioConfig == nil {
+			service.BlkioConfig = &types.BlkioConfig{}
+		}
+
 		service.BlkioConfig.DeviceReadIOps = []types.ThrottleDevice{}
 		for _, deviceReadIop := range c.DeviceReadIops {
 			parts := strings.SplitN(deviceReadIop, ":", 2)
@@ -97,6 +115,10 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.DeviceWriteIops) > 0 {
+		if service.BlkioConfig == nil {
+			service.BlkioConfig = &types.BlkioConfig{}
+		}
+
 		service.BlkioConfig.DeviceWriteIOps = []types.ThrottleDevice{}
 		for _, deviceWriteIop := range c.DeviceWriteIops {
 			parts := strings.SplitN(deviceWriteIop, ":", 2)
