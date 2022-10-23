@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/josegonzalez/cli-skeleton/command"
 	"github.com/mattn/go-shellwords"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -626,6 +625,6 @@ func transformStringToDuration(value interface{}) (interface{}, error) {
 	case types.Duration:
 		return value, nil
 	default:
-		return value, errors.Errorf("invalid type %T for duration", value)
+		return value, fmt.Errorf("invalid type %T for duration", value)
 	}
 }
