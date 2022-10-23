@@ -416,14 +416,16 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	if c.OomScore != 0 {
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --oom-score property in compose spec as the property is not valid in compose v3"))
 	}
+
 	if len(c.Pid) > 0 {
 		service.Pid = c.Pid
 	}
+
 	if c.PidsLimit != 0 {
 		service.PidsLimit = int64(c.PidsLimit)
 	}
 
-	if len(c.Pid) > 0 {
+	if len(c.Platform) > 0 {
 		service.Platform = c.Platform
 	}
 
