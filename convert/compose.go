@@ -482,7 +482,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --sig-proxy property in compose spec as the property is not valid in compose v3"))
 	}
 
-	if len(c.StopSignal) > 0 {
+	if len(c.StopSignal) > 0 && c.StopSignal != "SIGTERM" {
 		service.StopSignal = c.StopSignal
 	}
 
