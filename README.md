@@ -59,3 +59,38 @@ Non `docker run` supported flags:
 Unsupported `docker run` flags:
 
 - `-h`: (hostname) detected as help. Use `--hostname` instead.
+- `--pull`: compose behavior is to only pull if image is missing
+
+Unsupported by Compose v3:
+
+- `--attach`
+- `--cgroupns`
+- `--cidfile`
+- `--cpu-period`
+- `--cpu-quota`
+- `--cpu-rt-period`
+- `--cpu-rt-runtime`
+- `--cpuset-cpus`
+- `--cpuset-mems`
+- `--detach`
+- `--detach-keys`
+- `--disable-trust-content`
+- `--gpus`
+- `--interactive`
+- `--kernel-memory`
+- `--label-file`
+- `--publish-all`
+- `--rm`
+- `--sig-proxy`
+- `--storage-opt`
+
+Requires parsing and may be supported in the future:
+
+- `--device-read-bps`
+- `--device-write-bps`
+- `--health-timeout`
+- `--mount`
+- `--stop-timeout`
+- `--tmpfs`
+- `--ulimit`
+- `--volume`
