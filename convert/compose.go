@@ -547,7 +547,29 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.Volume) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --volume property in compose spec as the property must be validated and parsed"))
+		// todo: handle c:\\ style windows volumes
+		for _, value := range c.Volume {
+			parts := strings.SplitN(value, ":", 3)
+			volume := types.ServiceVolumeConfig{
+				Source: parts[0],
+			}
+			if len(parts) == 1 {
+				volume.Target = parts[0]
+			} else if len(parts) == 2 {
+				volume.Source = parts[0]
+				volume.Target = parts[1]
+			} else if len(parts) == 3 {
+				volume.Source = parts[0]
+				volume.Target = parts[1]
+				if parts[2] == "ro" {
+					volume.ReadOnly = true
+				} else if parts[2] == "rw" {
+					volume.ReadOnly = false
+				} else {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --volume flag as volume: invalid read mode %s", parts[2]))
+				}
+			}
+		}
 	}
 
 	if len(c.VolumeDriver) > 0 {

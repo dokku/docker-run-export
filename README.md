@@ -91,4 +91,3 @@ Requires parsing and may be supported in the future:
 - `--mount`
 - `--tmpfs`
 - `--ulimit`
-- `--volume`
