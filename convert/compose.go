@@ -355,7 +355,13 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	service.Links = c.Link
 
 	if len(c.LinkLocalIP) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --link-local-ip property in compose spec"))
+		if len(service.Networks) == 0 {
+			service.Networks = map[string]*types.ServiceNetworkConfig{
+				"default": {},
+			}
+		}
+
+		service.Networks["default"].LinkLocalIPs = c.LinkLocalIP
 	}
 
 	service.LogDriver = c.LogDriver
