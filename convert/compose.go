@@ -429,6 +429,121 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		service.Platform = c.Platform
 	}
 
+	if c.Privileged {
+		service.Privileged = c.Privileged
+	}
+
+	if len(c.Publish) > 0 {
+		for _, value := range c.Publish {
+			parsed, err := types.ParsePortConfig(value)
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --publish flag to slice: %w", err))
+			} else {
+				service.Ports = append(service.Ports, parsed...)
+			}
+		}
+	}
+
+	if c.PublishAll {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --publish-all property in compose spec as the property is not valid in compose v3"))
+	}
+
+	if c.PublishAll {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --publish-all property in compose spec as the property is not valid in compose v3"))
+	}
+
+	if c.Pull != "missing" {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --pull property in compose spec as images will always be pulled if missing"))
+	}
+
+	if c.ReadOnly {
+		service.ReadOnly = c.ReadOnly
+	}
+
+	if c.Rm {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --rm property in compose spec as the property is not valid in compose v3"))
+	}
+
+	if len(c.Runtime) > 0 {
+		service.Runtime = c.Runtime
+	}
+
+	if len(c.SecurityOpt) > 0 {
+		service.SecurityOpt = c.SecurityOpt
+	}
+
+	if c.ShmSize != 0 {
+		service.ShmSize = types.UnitBytes(c.ShmSize)
+	}
+
+	if c.SigProxy {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --sig-proxy property in compose spec as the property is not valid in compose v3"))
+	}
+
+	if len(c.StopSignal) > 0 {
+		service.StopSignal = c.StopSignal
+	}
+
+	if c.StopTimeout > 0 {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-timeout property in compose spec as the timeout must be validated and parsed"))
+	}
+
+	if len(c.StorageOpt) > 0 {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --storage-opt property in compose spec as the property is not valid in compose v3"))
+	}
+
+	if len(c.Sysctl) > 0 {
+		service.Sysctls = c.Sysctl
+	}
+
+	if len(c.Tmpfs) > 0 {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --tmpfs property in compose spec as the property must be validated and parsed"))
+	}
+
+	if c.Tty {
+		service.Tty = c.Tty
+	}
+
+	if len(c.Ulimit) > 0 {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --ulimit property in compose spec as the property must be validated and parsed"))
+	}
+
+	if len(c.User) > 0 {
+		service.User = c.User
+	}
+
+	if len(c.Userns) > 0 {
+		service.UserNSMode = c.Userns
+	}
+
+	if len(c.Uts) > 0 {
+		service.Uts = c.Uts
+	}
+
+	if len(c.Userns) > 0 {
+		service.UserNSMode = c.Userns
+	}
+
+	if len(c.Userns) > 0 {
+		service.UserNSMode = c.Userns
+	}
+
+	if len(c.Volume) > 0 {
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --volume property in compose spec as the property must be validated and parsed"))
+	}
+
+	if len(c.VolumeDriver) > 0 {
+		service.VolumeDriver = c.VolumeDriver
+	}
+
+	if len(c.VolumesFrom) > 0 {
+		service.VolumesFrom = c.VolumesFrom
+	}
+
+	if len(c.Workdir) > 0 {
+		service.WorkingDir = c.Workdir
+	}
+
 	if len(arguments["command"].ListValue()) > 0 {
 		service.Command = arguments["command"].ListValue()
 	}
