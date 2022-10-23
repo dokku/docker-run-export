@@ -602,6 +602,9 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.Ulimit) > 0 {
+		// todo: parse ulimits
+		// <type>=<soft limit>[:<hard limit>]
+		// https://docs.docker.com/engine/reference/commandline/run/#set-ulimits-in-container---ulimit
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --ulimit property in compose spec as the property must be validated and parsed"))
 	}
 
