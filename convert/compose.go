@@ -32,7 +32,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.Attach) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --attach property in compose output"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --attach property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if c.BlkioWeight != 0 {
@@ -65,7 +65,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 			service.BlkioConfig = &types.BlkioConfig{}
 		}
 
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --device-write-bps property in compose spec as the rate must be validated and parsed"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --device-read-bps property in compose spec as the rate must be validated and parsed"))
 		service.BlkioConfig.DeviceReadBps = []types.ThrottleDevice{}
 		// todo: parse parts[1] into a rate (bytes uint64) from string kb|mb|gb and set it
 		// todo: validate that each input has a format
@@ -135,29 +135,29 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	service.CapDrop = c.CapDrop
 
 	if len(c.Cgroupns) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cgroupns property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cgroupns property in compose spec as the property is not valid in compose v3"))
 	}
 
 	service.CgroupParent = c.CgroupParent
 
 	if len(c.Cidfile) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cidfile property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cidfile property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if c.CpuPeriod > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-period property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-period property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if c.CpuQuota > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-quota property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-quota property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if c.CpuRtPeriod > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-rt-period property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-rt-period property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if c.CpuRtRuntime > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-rt-runtime property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-rt-runtime property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if c.Cpus > 0 || c.Memory > 0 {
@@ -179,19 +179,19 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.CpusetCpus) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpuset-cpus property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpuset-cpus property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if len(c.CpusetMems) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpuset-mems property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpuset-mems property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if c.Detach {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if len(c.DetachKeys) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach-keys property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach-keys property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if len(c.Device) > 0 {
@@ -203,7 +203,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if !c.DisableContentTrust {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --disable-trust-content property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --disable-trust-content property in compose spec as the property is not valid in compose v3"))
 	}
 
 	service.DNS = c.Dns
@@ -225,7 +225,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	service.Expose = c.Expose
 
 	if len(c.Gpus) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --gpus property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --gpus property in compose spec as the property is not valid in compose v3"))
 	}
 
 	service.GroupAdd = c.GroupAdd
@@ -306,7 +306,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.Interactive {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --interactive property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --interactive property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if len(c.Ip) > 0 {
@@ -333,7 +333,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	service.Isolation = c.Isolation
 
 	if c.KernelMemory != 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --kernel-memory property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --kernel-memory property in compose spec as the property is not valid in compose v3"))
 	}
 
 	if len(c.Label) > 0 {
@@ -349,7 +349,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.LabelFile) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --label-file property in compose spec"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --label-file property in compose spec as the property is not valid in compose v3"))
 	}
 
 	service.Links = c.Link
@@ -416,11 +416,11 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.OomKillDisable {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --oom-kill-disable property in compose spec as the property is not valid in compose v3"))
+		service.OomKillDisable = c.OomKillDisable
 	}
 
 	if c.OomScore != 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --oom-score property in compose spec as the property is not valid in compose v3"))
+		service.OomScoreAdj = int64(c.OomScore)
 	}
 
 	if len(c.Pid) > 0 {
@@ -491,7 +491,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.StopTimeout > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-timeout property in compose spec as the timeout must be validated and parsed"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --stop-timeout property in compose spec as the timeout must be validated and parsed"))
 	}
 
 	if len(c.StorageOpt) > 0 {
