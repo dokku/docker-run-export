@@ -32,7 +32,6 @@ output
 name: derp
 services:
   app:
-    blkioconfig: {}
     cap_add:
     - DERP
     command:
@@ -47,7 +46,6 @@ services:
     - "5:5"
     extra_hosts:
       somehost: 162.242.195.82
-    healthcheck: {}
     image: alpine:latest
 ```
 
