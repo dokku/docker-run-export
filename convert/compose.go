@@ -229,37 +229,75 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	service.GroupAdd = c.GroupAdd
-	// todo: drop this block if there is nothing to add healthcheck-wise
-	service.HealthCheck = &types.HealthCheckConfig{}
 	if len(c.HealthCmd) > 0 {
-		args, err := shellwords.Parse(c.HealthCmd)
-		if err != nil {
-			errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-cmd flag to slice: %w", err))
+		if c.NoHealthcheck {
+			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-cmd  as --no-healthcheck is specified"))
 		} else {
-			service.HealthCheck.Test = args
+			args, err := shellwords.Parse(c.HealthCmd)
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-cmd flag to slice: %w", err))
+			} else {
+				if service.BlkioConfig == nil {
+					service.HealthCheck = &types.HealthCheckConfig{}
+				}
+
+				service.HealthCheck.Test = args
+			}
 		}
 	}
 
 	if c.HealthInterval != "0s" {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-interval property in compose spec as the interval must be validated and parsed"))
-		// todo: parse string to duration
-		// service.HealthCheck.Interval = c.HealthInterval
+		if c.NoHealthcheck {
+			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-interval  as --no-healthcheck is specified"))
+		} else {
+			if service.BlkioConfig == nil {
+				service.HealthCheck = &types.HealthCheckConfig{}
+			}
+
+			warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-interval property in compose spec as the interval must be validated and parsed"))
+			// todo: parse string to duration
+			// service.HealthCheck.Interval = c.HealthInterval
+		}
 	}
 
 	if c.HealthRetries != 0 {
-		service.HealthCheck.Retries = Uint64ToPtr(c.HealthRetries)
+		if c.NoHealthcheck {
+			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-retries  as --no-healthcheck is specified"))
+		} else {
+			if service.BlkioConfig == nil {
+				service.HealthCheck = &types.HealthCheckConfig{}
+			}
+
+			service.HealthCheck.Retries = Uint64ToPtr(c.HealthRetries)
+		}
 	}
 
 	if c.HealthStartPeriod != "0s" {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-start-period property in compose spec as the start period must be validated and parsed"))
-		// todo: parse string to duration
-		// service.HealthCheck.StartPeriod = c.HealthStartPeriod
+		if c.NoHealthcheck {
+			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-start-period  as --no-healthcheck is specified"))
+		} else {
+			if service.BlkioConfig == nil {
+				service.HealthCheck = &types.HealthCheckConfig{}
+			}
+
+			warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-start-period property in compose spec as the start period must be validated and parsed"))
+			// todo: parse string to duration
+			// service.HealthCheck.StartPeriod = c.HealthStartPeriod
+		}
 	}
 
 	if c.HealthTimeout != "0s" {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-timeout property in compose spec as the timeout must be validated and parsed"))
-		// todo: parse string to duration
-		// service.HealthCheck.Timeout = c.HealthTimeout
+		if c.NoHealthcheck {
+			warnings = multierror.Append(warnings, fmt.Errorf("ignoring --health-timeout  as --no-healthcheck is specified"))
+		} else {
+			if service.BlkioConfig == nil {
+				service.HealthCheck = &types.HealthCheckConfig{}
+			}
+
+			warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-timeout property in compose spec as the timeout must be validated and parsed"))
+			// todo: parse string to duration
+			// service.HealthCheck.Timeout = c.HealthTimeout
+		}
 	}
 
 	service.Hostname = c.Hostname
