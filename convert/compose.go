@@ -310,11 +310,23 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.Ip) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --ip property in compose spec as we need to assign this to a network"))
+		if len(service.Networks) == 0 {
+			service.Networks = map[string]*types.ServiceNetworkConfig{
+				"default": {},
+			}
+		}
+
+		service.Networks["default"].Ipv4Address = c.Ip
 	}
 
 	if len(c.Ip6) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --ip6 property in compose spec as we need to assign this to a network"))
+		if len(service.Networks) == 0 {
+			service.Networks = map[string]*types.ServiceNetworkConfig{
+				"default": {},
+			}
+		}
+
+		service.Networks["default"].Ipv6Address = c.Ip6
 	}
 
 	service.Ipc = c.Ipc
