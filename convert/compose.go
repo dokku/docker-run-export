@@ -577,9 +577,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		// todo: handle c:\\ style windows volumes
 		for i, value := range c.Volume {
 			parts := strings.SplitN(value, ":", 3)
-			volume := types.ServiceVolumeConfig{
-				Source: parts[0],
-			}
+			volume := types.ServiceVolumeConfig{}
 			if len(parts) == 1 {
 				volumeName := fmt.Sprintf("app-%d", i)
 				volume.Source = volumeName
