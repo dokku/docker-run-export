@@ -409,10 +409,6 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		service.HealthCheck.Disable = true
 	}
 
-	if len(c.Mount) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --mount property in compose spec as the mounts must be validated and parsed"))
-	}
-
 	if c.OomKillDisable {
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --oom-kill-disable property in compose spec as the property is not valid in compose v3"))
 	}
