@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/hashicorp/go-multierror"
 	"github.com/josegonzalez/cli-skeleton/command"
 	"github.com/mattn/go-shellwords"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -254,9 +256,12 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
-			warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-interval property in compose spec as the interval must be validated and parsed"))
-			// todo: parse string to duration
-			// service.HealthCheck.Interval = c.HealthInterval
+			val, err := transformStringToDuration(c.HealthInterval)
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
+			} else {
+				service.HealthCheck.Interval = DurationToPtr(val.(types.Duration))
+			}
 		}
 	}
 
@@ -280,9 +285,12 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
-			warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-start-period property in compose spec as the start period must be validated and parsed"))
-			// todo: parse string to duration
-			// service.HealthCheck.StartPeriod = c.HealthStartPeriod
+			val, err := transformStringToDuration(c.HealthStartPeriod)
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
+			} else {
+				service.HealthCheck.StartPeriod = DurationToPtr(val.(types.Duration))
+			}
 		}
 	}
 
@@ -294,9 +302,12 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
-			warnings = multierror.Append(warnings, fmt.Errorf("unable to set --health-timeout property in compose spec as the timeout must be validated and parsed"))
-			// todo: parse string to duration
-			// service.HealthCheck.Timeout = c.HealthTimeout
+			val, err := transformStringToDuration(c.HealthTimeout)
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
+			} else {
+				service.HealthCheck.Timeout = DurationToPtr(val.(types.Duration))
+			}
 		}
 	}
 
@@ -487,7 +498,12 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.StopTimeout > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --stop-timeout property in compose spec as the timeout must be validated and parsed"))
+		val, err := transformStringToDuration(c.StopTimeout)
+		if err != nil {
+			errs = multierror.Append(errs, fmt.Errorf("unable to parse --stop-timeout flag to duration: %w", err))
+		} else {
+			service.StopGracePeriod = DurationToPtr(val.(types.Duration))
+		}
 	}
 
 	if len(c.StorageOpt) > 0 {
@@ -570,4 +586,24 @@ func MarshalCompose(project *types.Project, format string) ([]byte, error) {
 // Uint64ToPtr returns the pointer to an int
 func Uint64ToPtr(i uint64) *uint64 {
 	return &i
+}
+
+// DurationToPtr returns the pointer to an types.Duration
+func DurationToPtr(i types.Duration) *types.Duration {
+	return &i
+}
+
+func transformStringToDuration(value interface{}) (interface{}, error) {
+	switch value := value.(type) {
+	case string:
+		d, err := time.ParseDuration(value)
+		if err != nil {
+			return value, err
+		}
+		return types.Duration(d), nil
+	case types.Duration:
+		return value, nil
+	default:
+		return value, errors.Errorf("invalid type %T for duration", value)
+	}
 }
