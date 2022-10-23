@@ -547,19 +547,27 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 	if len(c.Volume) > 0 {
 		// todo: handle c:\\ style windows volumes
-		for _, value := range c.Volume {
+		for i, value := range c.Volume {
 			parts := strings.SplitN(value, ":", 3)
 			volume := types.ServiceVolumeConfig{
 				Source: parts[0],
 			}
 			if len(parts) == 1 {
+				volumeName := fmt.Sprintf("app-%d", i)
+				volume.Source = volumeName
 				volume.Target = parts[0]
+				volume.Type = "volume"
+
+				project.Volumes = types.Volumes{}
+				project.Volumes[volumeName] = types.VolumeConfig{}
 			} else if len(parts) == 2 {
 				volume.Source = parts[0]
 				volume.Target = parts[1]
+				volume.Type = "bind"
 			} else if len(parts) == 3 {
 				volume.Source = parts[0]
 				volume.Target = parts[1]
+				volume.Type = "bind"
 				if parts[2] == "ro" {
 					volume.ReadOnly = true
 				} else if parts[2] == "rw" {
@@ -568,6 +576,8 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 					errs = multierror.Append(errs, fmt.Errorf("unable to parse --volume flag as volume: invalid read mode %s", parts[2]))
 				}
 			}
+
+			service.Volumes = append(service.Volumes, volume)
 		}
 	}
 
