@@ -478,7 +478,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		service.ShmSize = types.UnitBytes(c.ShmSize)
 	}
 
-	if c.SigProxy {
+	if !c.SigProxy {
 		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --sig-proxy property in compose spec as the property is not valid in compose v3"))
 	}
 
