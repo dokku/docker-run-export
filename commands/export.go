@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/compose-spec/compose-go/types"
+	"github.com/hashicorp/go-multierror"
 	"github.com/josegonzalez/cli-skeleton/command"
 	"github.com/posener/complete"
 	flag "github.com/spf13/pflag"
@@ -284,7 +286,17 @@ func (c *ExportCommand) Run(args []string) int {
 		return 1
 	}
 
-	project, warnings, errs := convert.ToCompose(c.project, &c.Args, arguments)
+	var output interface{}
+	var warnings *multierror.Error
+	var errs *multierror.Error
+
+	if c.format == "compose" {
+		output, warnings, errs = convert.ToCompose(c.project, &c.Args, arguments)
+	} else {
+		c.Ui.Error("Invalid dre-format specified")
+		return 1
+	}
+
 	if warnings != nil {
 		for _, warning := range warnings.Errors {
 			c.Ui.Error(warning.Error())
@@ -297,14 +309,18 @@ func (c *ExportCommand) Run(args []string) int {
 		return 1
 	}
 
-	out, err := convert.MarshalCompose(project, "yaml")
-	if err != nil {
-		c.Ui.Error(err.Error())
+	if c.format == "compose" {
+		out, err := convert.MarshalCompose(output.(*types.Project), "yaml")
+		if err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
+		println("---")
+		println(string(out))
+	} else {
+		c.Ui.Error("Invalid dre-format specified")
 		return 1
 	}
-
-	println("---")
-	println(string(out))
 
 	return 0
 }

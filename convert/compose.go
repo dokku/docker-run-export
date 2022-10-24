@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func ToCompose(projectName string, c *arguments.Args, arguments map[string]command.Argument) (*types.Project, *multierror.Error, *multierror.Error) {
+func ToCompose(projectName string, c *arguments.Args, arguments map[string]command.Argument) (interface{}, *multierror.Error, *multierror.Error) {
 	var warnings *multierror.Error
 	var errs *multierror.Error
 	project := &types.Project{
