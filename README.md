@@ -15,7 +15,7 @@ go build
 - docker `docker-compose.yml` 3.7: [Docs](/docs/compose.md)
 - nomad `job.json` (planned)
 - kubernetes `deployment.yml`: Use [kompose](https://kompose.io/)
-- ecs `task-definition.json` (planned)
+- ecs `task-definition.json`: Export to `docker-compose` and then use [ECS Contexts](https://docs.docker.com/cloud/ecs-integration/)
 
 ## Usage
 
