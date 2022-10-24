@@ -93,9 +93,9 @@ Requires parsing and may be supported in the future:
 Partially implemented:
 
 - `--mount`: Compose V3 does not support the following options:
-  - bind-nonrecursive
-  - volume-driver
-  - volume-label
-  - volume-opt
-  - tmpfs-mode
+  - `bind-nonrecursive`
+  - `volume-driver`
+  - `volume-label`
+  - `volume-opt`
+  - `tmpfs-mode`
 - `--volume`: does not properly parse windows paths
