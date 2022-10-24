@@ -432,17 +432,61 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 				}
 			}
 
-			// todo: implement the following options
-			// https://docs.docker.com/engine/reference/commandline/service_create/#add-bind-mounts-volumes-or-memory-filesystems
-			// - bind-propagation
-			// - consistency
-			// - bind-nonrecursive
-			// - volume-driver
-			// - volume-label
-			// - volume-nocopy
-			// - volume-opt
-			// - tmpfs-size
-			// - tmpfs-mode
+			if v, ok := data["bind-propagation"]; ok {
+				if volume.Type == "bind" {
+					if volume.Bind == nil {
+						volume.Bind = &types.ServiceVolumeBind{}
+					}
+
+					volume.Bind.Propagation = v
+				} else {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag due to invalid bind-propagation option for mount: %s", value))
+				}
+			}
+
+			if v, ok := data["consistency"]; ok {
+				if volume.Type == "bind" {
+					volume.Consistency = v
+				} else {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag due to invalid bind-propagation option for mount: %s", value))
+				}
+			}
+
+			if v, ok := data["volume-nocopy"]; ok {
+				if volume.Type == "volume" {
+					if volume.Volume == nil {
+						volume.Volume = &types.ServiceVolumeVolume{}
+					}
+
+					boolVal, err := toBoolean(v)
+					if err != nil {
+						errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag due to invalid volume-nocopy value for mount: %s", value))
+
+					}
+
+					volume.Volume.NoCopy = boolVal
+				} else {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag due to invalid volume-nocopy option for mount: %s", value))
+				}
+			}
+
+			if v, ok := data["tmpfs-size"]; ok {
+				if volume.Type == "tmpfs" {
+					if volume.Tmpfs == nil {
+						volume.Tmpfs = &types.ServiceVolumeTmpfs{}
+					}
+
+					int64Val, err := transformSize(v)
+					if err != nil {
+						errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag due to invalid tmpfs-size value for mount: %s", value))
+					}
+
+					volume.Tmpfs.Size = types.UnitBytes(int64Val)
+				} else {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag due to invalid tmpfs-size option for mount: %s", value))
+				}
+			}
+
 			service.Volumes = append(service.Volumes, volume)
 		}
 	}
@@ -744,5 +788,16 @@ func transformValueToMapEntry(value string, separator string) (string, string) {
 		return key, ""
 	default:
 		return key, parts[1]
+	}
+}
+
+func toBoolean(value string) (bool, error) {
+	switch strings.ToLower(value) {
+	case "y", "yes", "true", "on":
+		return true, nil
+	case "n", "no", "false", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean: %s", value)
 	}
 }
