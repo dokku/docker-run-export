@@ -444,9 +444,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 			// - tmpfs-size
 			// - tmpfs-mode
 			service.Volumes = append(service.Volumes, volume)
-
 		}
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --mount property in compose spec as the mounts must be validated and parsed"))
 	}
 
 	service.ContainerName = c.ContainerName
