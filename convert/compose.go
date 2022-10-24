@@ -647,10 +647,34 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.Ulimit) > 0 {
-		// todo: parse ulimits
-		// <type>=<soft limit>[:<hard limit>]
-		// https://docs.docker.com/engine/reference/commandline/run/#set-ulimits-in-container---ulimit
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --ulimit property in compose spec as the property must be validated and parsed"))
+		service.Ulimits = map[string]*types.UlimitsConfig{}
+		for _, value := range c.Ulimit {
+			key, value := extractParts(value, "=")
+			service.Ulimits[key] = &types.UlimitsConfig{}
+			first, second := extractParts(value, ":")
+			if second == "" {
+				v, err := toInt(first)
+				if err != nil {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --ulimit flag value: %w", err))
+				} else {
+					service.Ulimits[key].Single = v
+				}
+			} else {
+				vf, err := toInt(first)
+				if err != nil {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --ulimit flag value: %w", err))
+				} else {
+					service.Ulimits[key].Soft = vf
+				}
+
+				vs, err := toInt(second)
+				if err != nil {
+					errs = multierror.Append(errs, fmt.Errorf("unable to parse --ulimit flag value: %w", err))
+				} else {
+					service.Ulimits[key].Hard = vs
+				}
+			}
+		}
 	}
 
 	if len(c.User) > 0 {
@@ -755,6 +779,10 @@ func toDuration(value interface{}) (interface{}, error) {
 	default:
 		return value, fmt.Errorf("invalid type %T for duration", value)
 	}
+}
+
+func toInt(value string) (int, error) {
+	return strconv.Atoi(value)
 }
 
 func toSize(value interface{}) (int64, error) {
