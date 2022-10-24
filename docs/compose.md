@@ -58,11 +58,6 @@ Unsupported by Compose v3:
 - `--sig-proxy`
 - `--storage-opt`
 
-Requires parsing and may be supported in the future:
-
-- `--device-read-bps`
-- `--device-write-bps`
-
 Partially implemented:
 
 - `--mount`: Compose V3 does not support the following options:
