@@ -665,14 +665,6 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		service.Uts = c.Uts
 	}
 
-	if len(c.Userns) > 0 {
-		service.UserNSMode = c.Userns
-	}
-
-	if len(c.Userns) > 0 {
-		service.UserNSMode = c.Userns
-	}
-
 	if len(c.Volume) > 0 {
 		// todo: handle c:\\ style windows volumes
 		for i, value := range c.Volume {
