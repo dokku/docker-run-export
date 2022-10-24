@@ -256,7 +256,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
-			val, err := transformStringToDuration(c.HealthInterval)
+			val, err := toDuration(c.HealthInterval)
 			if err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
 			} else {
@@ -285,7 +285,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
-			val, err := transformStringToDuration(c.HealthStartPeriod)
+			val, err := toDuration(c.HealthStartPeriod)
 			if err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
 			} else {
@@ -302,7 +302,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 				service.HealthCheck = &types.HealthCheckConfig{}
 			}
 
-			val, err := transformStringToDuration(c.HealthTimeout)
+			val, err := toDuration(c.HealthTimeout)
 			if err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
 			} else {
@@ -397,7 +397,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		for _, value := range c.Mount {
 			data := map[string]string{}
 			for _, part := range strings.Split(value, ",") {
-				k, v := transformValueToMapEntry(part, "=")
+				k, v := extractParts(part, "=")
 				data[k] = v
 			}
 
@@ -476,7 +476,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 						volume.Tmpfs = &types.ServiceVolumeTmpfs{}
 					}
 
-					int64Val, err := transformSize(v)
+					int64Val, err := toSize(v)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("unable to parse --mount flag due to invalid tmpfs-size value for mount: %s", value))
 					}
@@ -592,7 +592,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.StopTimeout > 0 {
-		val, err := transformStringToDuration(c.StopTimeout)
+		val, err := toDuration(c.StopTimeout)
 		if err != nil {
 			errs = multierror.Append(errs, fmt.Errorf("unable to parse --stop-timeout flag to duration: %w", err))
 		} else {
@@ -624,12 +624,12 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 				data := map[string]string{}
 				for _, part := range strings.Split(parts[1], ",") {
-					k, v := transformValueToMapEntry(part, "=")
+					k, v := extractParts(part, "=")
 					data[k] = v
 				}
 
 				if size, ok := data["size"]; ok {
-					bytes, err := transformSize(size)
+					bytes, err := toSize(size)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("unable to parse --tmpfs flag as volume: %w", err))
 					} else {
@@ -750,7 +750,7 @@ func DurationToPtr(i types.Duration) *types.Duration {
 	return &i
 }
 
-func transformStringToDuration(value interface{}) (interface{}, error) {
+func toDuration(value interface{}) (interface{}, error) {
 	switch value := value.(type) {
 	case string:
 		d, err := time.ParseDuration(value)
@@ -765,7 +765,7 @@ func transformStringToDuration(value interface{}) (interface{}, error) {
 	}
 }
 
-func transformSize(value interface{}) (int64, error) {
+func toSize(value interface{}) (int64, error) {
 	switch value := value.(type) {
 	case int:
 		return int64(value), nil
@@ -780,7 +780,7 @@ func transformSize(value interface{}) (int64, error) {
 	}
 }
 
-func transformValueToMapEntry(value string, separator string) (string, string) {
+func extractParts(value string, separator string) (string, string) {
 	parts := strings.SplitN(value, separator, 2)
 	key := parts[0]
 	switch {
