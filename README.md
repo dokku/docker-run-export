@@ -14,7 +14,7 @@ go build
 
 - docker `docker-compose.yml` 3.7: [Docs](/docs/compose.md)
 - nomad `job.json` (planned)
-- kubernetes `deployment.yml` (planned)
+- kubernetes `deployment.yml`: Use [kompose](https://kompose.io/)
 - ecs `task-definition.json` (planned)
 
 ## Usage
