@@ -41,7 +41,7 @@ targets = $(addsuffix -in-docker, $(LIST))
 	@echo "PACKAGECLOUD_TOKEN=$(PACKAGECLOUD_TOKEN)" >> .env.docker
 	@echo "VERSION=$(VERSION)" >> .env.docker
 
-build:
+build: prebuild
 	@$(MAKE) build/darwin/$(NAME)
 	@$(MAKE) build/linux/$(NAME)-amd64
 	@$(MAKE) build/linux/$(NAME)-arm64
@@ -246,3 +246,6 @@ validate:
 	sha1sum build/deb/$(NAME)_$(VERSION)_armhf.deb
 	sha1sum build/rpm/$(NAME)-$(VERSION)-1.x86_64.rpm
 	bats test.bats
+
+prebuild:
+	true
