@@ -1,0 +1,3 @@
+FROM scratch
+COPY ./build/linux/docker-run-export-amd64 /docker-run-export
+ENTRYPOINT ["/docker-run-export"]
