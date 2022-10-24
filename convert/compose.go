@@ -580,18 +580,21 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 					},
 				}
 
-				options := strings.Split(parts[1], ",")
-				for _, option := range options {
-					if strings.HasPrefix(option, "size=") {
-						size := strings.TrimPrefix(option, "size=")
-						bytes, err := transformSize(size)
-						if err != nil {
-							errs = multierror.Append(errs, fmt.Errorf("unable to parse --tmpfs flag as volume: %w", err))
-						} else {
-							volume.Tmpfs.Size = types.UnitBytes(bytes)
-						}
+				data := map[string]string{}
+				for _, part := range strings.Split(parts[1], ",") {
+					k, v := transformValueToMapEntry(part, "=")
+					data[k] = v
+				}
+
+				if size, ok := data["size"]; ok {
+					bytes, err := transformSize(size)
+					if err != nil {
+						errs = multierror.Append(errs, fmt.Errorf("unable to parse --tmpfs flag as volume: %w", err))
+					} else {
+						volume.Tmpfs.Size = types.UnitBytes(bytes)
 					}
 				}
+
 				service.Volumes = append(service.Volumes, volume)
 			}
 		}
