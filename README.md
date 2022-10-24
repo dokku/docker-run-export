@@ -10,7 +10,7 @@ This is a work in progress
 go build
 ```
 
-## Formats supported
+## Formats
 
 - docker `docker-compose.yml` 3.7: [Docs](/docs/compose.md)
 - nomad `job.json` (planned)
@@ -29,4 +29,3 @@ Non `docker run` supported flags:
 
 - `dre-project`: the project name
 - `dre-format`: the format to export as
-
