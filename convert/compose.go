@@ -67,17 +67,19 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 			service.BlkioConfig = &types.BlkioConfig{}
 		}
 
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --device-read-bps property in compose spec as the rate must be validated and parsed"))
 		service.BlkioConfig.DeviceReadBps = []types.ThrottleDevice{}
-		// todo: parse parts[1] into a rate (bytes uint64) from string kb|mb|gb and set it
-		// todo: validate that each input has a format
-		// for _, deviceReadBp := range c.DeviceReadBps {
-		// 	parts := strings.SplitN(deviceReadBp, ":", 2)
-		// 	service.BlkioConfig.DeviceReadBps = append(service.BlkioConfig.DeviceReadBps, types.ThrottleDevice{
-		// 		Path: parts[0],
-		// 		Rate: parts[1],
-		// 	})
-		// }
+		for _, deviceReadBp := range c.DeviceReadBps {
+			parts := strings.SplitN(deviceReadBp, ":", 2)
+			value, err := units.FromHumanSize(parts[1])
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --device-read-bps flag: %w", err))
+			}
+
+			service.BlkioConfig.DeviceReadBps = append(service.BlkioConfig.DeviceReadBps, types.ThrottleDevice{
+				Path: parts[0],
+				Rate: uint64(value),
+			})
+		}
 	}
 
 	if len(c.DeviceWriteBps) > 0 {
@@ -85,18 +87,19 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 			service.BlkioConfig = &types.BlkioConfig{}
 		}
 
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --device-write-bps property in compose spec as the rate must be validated and parsed"))
-
 		service.BlkioConfig.DeviceWriteBps = []types.ThrottleDevice{}
-		// todo: parse parts[1] into a rate (bytes uint64) from string kb|mb|gb and set it
-		// todo: validate that each input has a format
-		// for _, deviceWriteBp := range c.DeviceWriteBps {
-		// 	parts := strings.SplitN(deviceWriteBp, ":", 2)
-		// 	service.BlkioConfig.DeviceWriteBps = append(service.BlkioConfig.DeviceWriteBps, types.ThrottleDevice{
-		// 		Path: parts[0],
-		// 		Rate: parts[1],
-		// 	})
-		// }
+		for _, deviceWriteBp := range c.DeviceWriteBps {
+			parts := strings.SplitN(deviceWriteBp, ":", 2)
+			value, err := units.FromHumanSize(parts[1])
+			if err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --device-write-bps flag: %w", err))
+			}
+
+			service.BlkioConfig.DeviceWriteBps = append(service.BlkioConfig.DeviceWriteBps, types.ThrottleDevice{
+				Path: parts[0],
+				Rate: uint64(value),
+			})
+		}
 	}
 
 	if len(c.DeviceReadIops) > 0 {
