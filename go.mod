@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/josegonzalez/cli-skeleton v0.7.0
 	github.com/mattn/go-shellwords v1.0.12
-	github.com/mitchellh/cli v1.1.4
+	github.com/mitchellh/cli v1.1.5
 	github.com/posener/complete v1.2.3
 	github.com/spf13/pflag v1.0.5
 	gopkg.in/yaml.v2 v2.4.0
