@@ -77,7 +77,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 			service.BlkioConfig.DeviceReadBps = append(service.BlkioConfig.DeviceReadBps, types.ThrottleDevice{
 				Path: parts[0],
-				Rate: uint64(value),
+				Rate: types.UnitBytes(value),
 			})
 		}
 	}
@@ -97,7 +97,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 			service.BlkioConfig.DeviceWriteBps = append(service.BlkioConfig.DeviceWriteBps, types.ThrottleDevice{
 				Path: parts[0],
-				Rate: uint64(value),
+				Rate: types.UnitBytes(value),
 			})
 		}
 	}
@@ -114,7 +114,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 			service.BlkioConfig.DeviceReadIOps = append(service.BlkioConfig.DeviceReadIOps, types.ThrottleDevice{
 				Path: parts[0],
-				Rate: number,
+				Rate: types.UnitBytes(number),
 			})
 		}
 	}
@@ -131,7 +131,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 			service.BlkioConfig.DeviceWriteIOps = append(service.BlkioConfig.DeviceWriteIOps, types.ThrottleDevice{
 				Path: parts[0],
-				Rate: number,
+				Rate: types.UnitBytes(number),
 			})
 		}
 	}
