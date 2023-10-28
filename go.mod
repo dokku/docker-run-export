@@ -3,7 +3,7 @@ module docker-run-export
 go 1.19
 
 require (
-	github.com/compose-spec/compose-go v1.19.0
+	github.com/compose-spec/compose-go v1.20.0
 	github.com/docker/go-units v0.5.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/josegonzalez/cli-skeleton v0.11.0
