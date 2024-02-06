@@ -6,7 +6,7 @@ require (
 	github.com/compose-spec/compose-go v1.20.2
 	github.com/docker/go-units v0.5.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/josegonzalez/cli-skeleton v0.14.0
+	github.com/josegonzalez/cli-skeleton v0.15.0
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mitchellh/cli v1.1.5
 	github.com/posener/complete v1.2.3
@@ -35,7 +35,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/rs/zerolog v1.31.0 // indirect
+	github.com/rs/zerolog v1.32.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
