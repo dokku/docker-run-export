@@ -315,8 +315,8 @@ func (c *ExportCommand) Run(args []string) int {
 			c.Ui.Error(err.Error())
 			return 1
 		}
-		println("---")
-		println(string(out))
+		fmt.Println("---")
+		fmt.Println(string(out))
 	} else {
 		c.Ui.Error("Invalid dre-format specified")
 		return 1
