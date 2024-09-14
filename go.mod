@@ -1,6 +1,6 @@
 module docker-run-export
 
-go 1.19
+go 1.23
 
 require (
 	github.com/compose-spec/compose-go v1.20.2
