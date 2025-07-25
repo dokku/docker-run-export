@@ -10,7 +10,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mitchellh/cli v1.1.5
 	github.com/posener/complete v1.2.3
-	github.com/spf13/pflag v1.0.6
+	github.com/spf13/pflag v1.0.7
 	gopkg.in/yaml.v2 v2.4.0
 )
 
