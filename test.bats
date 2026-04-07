@@ -16,6 +16,11 @@ yq_s() {
   echo "$output" | yq "$1"
 }
 
+# Helper: query the JSON output with jq (skip any non-JSON lines like warnings)
+jq_s() {
+  echo "$output" | awk '/^\{/,0' | jq -r "$1"
+}
+
 # Basic functionality
 
 @test "basic: image only" {
@@ -756,4 +761,500 @@ yq_s() {
   [[ "$(yq_s '.services.app.labels."com.example"')" == "test" ]]
   [[ "$(yq_s '.services.app.image')" == "alpine:latest" ]]
   [[ "$(yq_s '.services.app.command[0]')" == "echo" ]]
+}
+
+# ==========================================
+# ECS Task Definition Tests
+# ==========================================
+
+# ECS Basic functionality
+
+@test "ecs basic: image only" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].image')" == "alpine:latest" ]]
+  [[ "$(jq_s '.containerDefinitions[0].name')" == "app" ]]
+  [[ "$(jq_s '.containerDefinitions[0].essential')" == "true" ]]
+}
+
+@test "ecs basic: valid json output" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs alpine:latest
+  [[ "$status" -eq 0 ]]
+  echo "$output" | jq . > /dev/null 2>&1
+}
+
+@test "ecs basic: image with command" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs alpine:latest echo hello
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].image')" == "alpine:latest" ]]
+  [[ "$(jq_s '.containerDefinitions[0].command[0]')" == "echo" ]]
+  [[ "$(jq_s '.containerDefinitions[0].command[1]')" == "hello" ]]
+}
+
+@test "ecs basic: family from project name" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --dre-project myapp alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.family')" == "myapp" ]]
+}
+
+@test "ecs basic: container name from --name" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --name mycontainer alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].name')" == "mycontainer" ]]
+}
+
+@test "ecs basic: family falls back to container name" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --name mycontainer alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.family')" == "mycontainer" ]]
+}
+
+@test "ecs basic: entrypoint" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --entrypoint /bin/sh alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].entryPoint[0]')" == "/bin/sh" ]]
+}
+
+# ECS Networking
+
+@test "ecs networking: add-host" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --add-host "myhost:192.168.1.1" alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].extraHosts[0].hostname')" == "myhost" ]]
+  [[ "$(jq_s '.containerDefinitions[0].extraHosts[0].ipAddress')" == "192.168.1.1" ]]
+}
+
+@test "ecs networking: dns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --dns 8.8.8.8 --dns 8.8.4.4 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].dnsServers[0]')" == "8.8.8.8" ]]
+  [[ "$(jq_s '.containerDefinitions[0].dnsServers[1]')" == "8.8.4.4" ]]
+}
+
+@test "ecs networking: dns-search" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --dns-search example.com alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].dnsSearchDomains[0]')" == "example.com" ]]
+}
+
+@test "ecs networking: hostname" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --hostname myhost alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].hostname')" == "myhost" ]]
+}
+
+@test "ecs networking: publish" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -p 8080:80 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].portMappings[0].containerPort')" == "80" ]]
+  [[ "$(jq_s '.containerDefinitions[0].portMappings[0].hostPort')" == "8080" ]]
+}
+
+@test "ecs networking: publish with protocol" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -p 8080:80/udp alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].portMappings[0].protocol')" == "udp" ]]
+}
+
+@test "ecs networking: network mode host" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --network host alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.networkMode')" == "host" ]]
+}
+
+@test "ecs networking: network mode bridge" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --network bridge alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.networkMode')" == "bridge" ]]
+}
+
+@test "ecs networking: custom network maps to awsvpc" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --network mynetwork alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.networkMode')" == "awsvpc" ]]
+}
+
+@test "ecs networking: link" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --link db:database alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].links[0]')" == "db:database" ]]
+}
+
+# ECS Resource Constraints
+
+@test "ecs resources: cpu-shares" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --cpu-shares 512 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].cpu')" == "512" ]]
+}
+
+@test "ecs resources: cpus at task level" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --cpus 2 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.cpu')" == "2048" ]]
+}
+
+@test "ecs resources: memory" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --memory 536870912 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].memory')" == "512" ]]
+  [[ "$(jq_s '.memory')" == "512" ]]
+}
+
+@test "ecs resources: memory-reservation" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --memory-reservation 268435456 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].memoryReservation')" == "256" ]]
+}
+
+@test "ecs resources: ulimits" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --ulimit nofile=1024:2048 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].ulimits[0].name')" == "nofile" ]]
+  [[ "$(jq_s '.containerDefinitions[0].ulimits[0].softLimit')" == "1024" ]]
+  [[ "$(jq_s '.containerDefinitions[0].ulimits[0].hardLimit')" == "2048" ]]
+}
+
+@test "ecs resources: ulimits single value" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --ulimit nofile=1024 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].ulimits[0].softLimit')" == "1024" ]]
+  [[ "$(jq_s '.containerDefinitions[0].ulimits[0].hardLimit')" == "1024" ]]
+}
+
+@test "ecs resources: shm-size" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --shm-size 67108864 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.sharedMemorySize')" == "64" ]]
+}
+
+# ECS Environment and Labels
+
+@test "ecs environment: env" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -e FOO=bar -e BAZ=qux alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].environment | length')" == "2" ]]
+  [[ "$(jq_s '.containerDefinitions[0].environment[0].name')" == "FOO" ]]
+  [[ "$(jq_s '.containerDefinitions[0].environment[0].value')" == "bar" ]]
+}
+
+@test "ecs labels: docker-labels" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -l com.example.key=value alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].dockerLabels."com.example.key"')" == "value" ]]
+}
+
+# ECS Security and Linux Parameters
+
+@test "ecs security: cap-add" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --cap-add NET_ADMIN alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.capabilities.add[0]')" == "NET_ADMIN" ]]
+}
+
+@test "ecs security: cap-drop" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --cap-drop ALL alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.capabilities.drop[0]')" == "ALL" ]]
+}
+
+@test "ecs security: privileged" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --privileged alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].privileged')" == "true" ]]
+}
+
+@test "ecs security: read-only" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --read-only alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].readonlyRootFilesystem')" == "true" ]]
+}
+
+@test "ecs security: security-opt" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --security-opt no-new-privileges alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].dockerSecurityOptions[0]')" == "no-new-privileges" ]]
+}
+
+@test "ecs security: init" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --init alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.initProcessEnabled')" == "true" ]]
+}
+
+@test "ecs security: user" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --user 1000:1000 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].user')" == "1000:1000" ]]
+}
+
+# ECS Health Check
+
+@test "ecs healthcheck: basic" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs \
+    --health-cmd "curl -f http://localhost/" \
+    --health-interval 30s \
+    --health-timeout 10s \
+    --health-retries 3 \
+    --health-start-period 5s \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].healthCheck.command[0]')" == "CMD-SHELL" ]]
+  [[ "$(jq_s '.containerDefinitions[0].healthCheck.command[1]')" == "curl -f http://localhost/" ]]
+  [[ "$(jq_s '.containerDefinitions[0].healthCheck.interval')" == "30" ]]
+  [[ "$(jq_s '.containerDefinitions[0].healthCheck.timeout')" == "10" ]]
+  [[ "$(jq_s '.containerDefinitions[0].healthCheck.retries')" == "3" ]]
+  [[ "$(jq_s '.containerDefinitions[0].healthCheck.startPeriod')" == "5" ]]
+}
+
+# ECS Volumes
+
+@test "ecs volumes: bind mount" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -v /host/path:/container/path alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].mountPoints[0].containerPath')" == "/container/path" ]]
+  [[ "$(jq_s '.containerDefinitions[0].mountPoints[0].sourceVolume')" == "volume-0" ]]
+  [[ "$(jq_s '.volumes[0].host.sourcePath')" == "/host/path" ]]
+}
+
+@test "ecs volumes: bind mount read-only" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -v /host/path:/container/path:ro alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].mountPoints[0].readOnly')" == "true" ]]
+}
+
+@test "ecs volumes: volumes-from" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --volumes-from mycontainer alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].volumesFrom[0].sourceContainer')" == "mycontainer" ]]
+}
+
+@test "ecs volumes: volumes-from read-only" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --volumes-from mycontainer:ro alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].volumesFrom[0].readOnly')" == "true" ]]
+}
+
+# ECS Logging
+
+@test "ecs logging: log-driver and log-opt" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --log-driver awslogs --log-opt awslogs-group=mygroup --log-opt awslogs-region=us-east-1 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].logConfiguration.logDriver')" == "awslogs" ]]
+  [[ "$(jq_s '.containerDefinitions[0].logConfiguration.options."awslogs-group"')" == "mygroup" ]]
+  [[ "$(jq_s '.containerDefinitions[0].logConfiguration.options."awslogs-region"')" == "us-east-1" ]]
+}
+
+# ECS Lifecycle
+
+@test "ecs lifecycle: stop-timeout" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --stop-timeout 30 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].stopTimeout')" == "30" ]]
+}
+
+@test "ecs lifecycle: interactive" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -i alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].interactive')" == "true" ]]
+}
+
+@test "ecs lifecycle: tty" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs -t alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].pseudoTerminal')" == "true" ]]
+}
+
+@test "ecs lifecycle: workdir" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --workdir /app alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].workingDirectory')" == "/app" ]]
+}
+
+# ECS Namespace and isolation
+
+@test "ecs namespace: pid" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --pid host alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.pidMode')" == "host" ]]
+}
+
+@test "ecs namespace: ipc" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --ipc host alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.ipcMode')" == "host" ]]
+}
+
+# ECS Sysctl
+
+@test "ecs sysctl: system controls" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --sysctl net.core.somaxconn=1024 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].systemControls[0].namespace')" == "net.core.somaxconn" ]]
+  [[ "$(jq_s '.containerDefinitions[0].systemControls[0].value')" == "1024" ]]
+}
+
+# ECS Platform
+
+@test "ecs platform: linux/amd64" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --platform linux/amd64 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.runtimePlatform.operatingSystemFamily')" == "LINUX" ]]
+  [[ "$(jq_s '.runtimePlatform.cpuArchitecture')" == "X86_64" ]]
+}
+
+@test "ecs platform: linux/arm64" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --platform linux/arm64 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.runtimePlatform.cpuArchitecture')" == "ARM64" ]]
+}
+
+# ECS Device
+
+@test "ecs device: basic device mapping" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --device /dev/sda:/dev/xvdc alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.devices[0].hostPath')" == "/dev/sda" ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.devices[0].containerPath')" == "/dev/xvdc" ]]
+}
+
+# ECS GPUs
+
+@test "ecs gpus: all gpus" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --gpus all alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.containerDefinitions[0].resourceRequirements[0].type')" == "GPU" ]]
+  [[ "$(jq_s '.containerDefinitions[0].resourceRequirements[0].value')" == "1" ]]
+}
+
+# ECS-specific flags
+
+@test "ecs specific: task role arn" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --dre-ecs-task-role-arn "arn:aws:iam::123456789012:role/my-role" alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.taskRoleArn')" == "arn:aws:iam::123456789012:role/my-role" ]]
+}
+
+@test "ecs specific: execution role arn" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --dre-ecs-execution-role-arn "arn:aws:iam::123456789012:role/exec-role" alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.executionRoleArn')" == "arn:aws:iam::123456789012:role/exec-role" ]]
+}
+
+@test "ecs specific: launch type" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --dre-ecs-launch-type FARGATE alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.requiresCompatibilities[0]')" == "FARGATE" ]]
+}
+
+# ECS Unsupported flags
+
+@test "ecs unsupported: blkio-weight warns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --blkio-weight 300 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"unable to set --blkio-weight"* ]]
+}
+
+@test "ecs unsupported: restart warns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --restart always alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"unable to set --restart"* ]]
+}
+
+@test "ecs unsupported: cgroupns warns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --cgroupns host alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"unable to set --cgroupns"* ]]
+}
+
+@test "ecs unsupported: expose warns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --expose 8080 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"unable to set --expose"* ]]
+}
+
+@test "ecs unsupported: env-file warns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs --env-file /dev/null alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"unable to set --env-file"* ]]
+}
+
+# ECS Combined flags
+
+@test "ecs combined: multiple flags together" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs \
+    --dre-project myapp \
+    --name mycontainer \
+    --hostname myhost \
+    -e FOO=bar \
+    -p 8080:80 \
+    -v /data:/data:ro \
+    --cpu-shares 512 \
+    --cap-add NET_ADMIN \
+    --init \
+    --read-only \
+    -l com.example=test \
+    alpine:latest echo hello
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.family')" == "myapp" ]]
+  [[ "$(jq_s '.containerDefinitions[0].name')" == "mycontainer" ]]
+  [[ "$(jq_s '.containerDefinitions[0].hostname')" == "myhost" ]]
+  [[ "$(jq_s '.containerDefinitions[0].image')" == "alpine:latest" ]]
+  [[ "$(jq_s '.containerDefinitions[0].command[0]')" == "echo" ]]
+  [[ "$(jq_s '.containerDefinitions[0].essential')" == "true" ]]
+  [[ "$(jq_s '.containerDefinitions[0].environment[0].name')" == "FOO" ]]
+  [[ "$(jq_s '.containerDefinitions[0].portMappings[0].containerPort')" == "80" ]]
+  [[ "$(jq_s '.containerDefinitions[0].mountPoints[0].readOnly')" == "true" ]]
+  [[ "$(jq_s '.containerDefinitions[0].cpu')" == "512" ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.capabilities.add[0]')" == "NET_ADMIN" ]]
+  [[ "$(jq_s '.containerDefinitions[0].linuxParameters.initProcessEnabled')" == "true" ]]
+  [[ "$(jq_s '.containerDefinitions[0].readonlyRootFilesystem')" == "true" ]]
+  [[ "$(jq_s '.containerDefinitions[0].dockerLabels."com.example"')" == "test" ]]
+}
+
+# ==========================================
+# ECS CloudFormation Tests
+# ==========================================
+
+@test "ecs-cfn basic: valid yaml output" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(yq_s '.AWSTemplateFormatVersion')" == "2010-09-09" ]]
+}
+
+@test "ecs-cfn basic: has task definition resource" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(yq_s '.Resources.TaskDefinition.Type')" == "AWS::ECS::TaskDefinition" ]]
+}
+
+@test "ecs-cfn basic: image in properties" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(yq_s '.Resources.TaskDefinition.Properties.ContainerDefinitions[0].Image')" == "alpine:latest" ]]
+}
+
+@test "ecs-cfn basic: family in properties" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn --dre-project myapp alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(yq_s '.Resources.TaskDefinition.Properties.Family')" == "myapp" ]]
+}
+
+@test "ecs-cfn basic: command in properties" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn alpine:latest echo hello
+  [[ "$status" -eq 0 ]]
+  [[ "$(yq_s '.Resources.TaskDefinition.Properties.ContainerDefinitions[0].Command[0]')" == "echo" ]]
+}
+
+@test "ecs-cfn networking: port mappings use PascalCase" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn -p 8080:80 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(yq_s '.Resources.TaskDefinition.Properties.ContainerDefinitions[0].PortMappings[0].ContainerPort')" == "80" ]]
+  [[ "$(yq_s '.Resources.TaskDefinition.Properties.ContainerDefinitions[0].PortMappings[0].HostPort')" == "8080" ]]
+}
+
+@test "ecs-cfn specific: launch type" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn --dre-ecs-launch-type FARGATE alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(yq_s '.Resources.TaskDefinition.Properties.RequiresCompatibilities[0]')" == "FARGATE" ]]
 }
