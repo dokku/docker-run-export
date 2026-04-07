@@ -780,7 +780,7 @@ jq_s() {
 @test "ecs basic: valid json output" {
   run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs alpine:latest
   [[ "$status" -eq 0 ]]
-  echo "$output" | jq . > /dev/null 2>&1
+  echo "$output" | jq . >/dev/null 2>&1
 }
 
 @test "ecs basic: image with command" {
