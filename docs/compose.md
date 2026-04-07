@@ -13,6 +13,7 @@ services:
   app:
     cap_add:
     - DERP
+    cpus: 5
     command:
     - key
     - echo
@@ -20,11 +21,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "5.000000"
+          cpus: 5
     expose:
     - "5:5"
     extra_hosts:
-      somehost: 162.242.195.82
+    - somehost=162.242.195.82
     image: alpine:latest
 ```
 
@@ -33,34 +34,23 @@ services:
 Unsupported `docker run` flags:
 
 - `-h`: (hostname) detected as help. Use `--hostname` instead.
-- `--pull`: compose behavior is to only pull if image is missing
 
-Unsupported by Compose v3:
+Not supported by the Compose Specification:
 
 - `--attach`
-- `--cgroupns`
 - `--cidfile`
-- `--cpu-period`
-- `--cpu-quota`
-- `--cpu-rt-period`
-- `--cpu-rt-runtime`
-- `--cpuset-cpus`
 - `--cpuset-mems`
 - `--detach`
 - `--detach-keys`
-- `--disable-trust-content`
-- `--gpus`
-- `--interactive`
+- `--disable-content-trust`
 - `--kernel-memory`
-- `--label-file`
 - `--publish-all`
 - `--rm`
 - `--sig-proxy`
-- `--storage-opt`
 
 Partially implemented:
 
-- `--mount`: Compose V3 does not support the following options:
+- `--mount`: The following options are not supported:
   - `bind-nonrecursive`
   - `volume-driver`
   - `volume-label`

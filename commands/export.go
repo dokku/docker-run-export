@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/compose-spec/compose-go/types"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/hashicorp/go-multierror"
 	"github.com/josegonzalez/cli-skeleton/command"
 	"github.com/posener/complete"
@@ -96,6 +96,7 @@ func (c *ExportCommand) FlagSet() *flag.FlagSet {
 	f.IntVarP(&c.CpuShares, "cpu-shares", "c", 0, "CPU shares (relative weight)")
 	f.Int64VarP(&c.Memory, "memory", "m", 0, "Memory limit")
 	f.StringArrayVar(&c.AddHost, "add-host", []string{}, "Add a custom host-to-IP mapping (host:ip)")
+	f.StringArrayVar(&c.Annotation, "annotation", []string{}, "Add an annotation to the container (passed through to the OCI runtime)")
 	f.StringArrayVar(&c.BlkioWeightDevice, "blkio-weight-device", []string{}, "Block IO weight (relative device weight) (default [])")
 	f.StringArrayVar(&c.CapAdd, "cap-add", []string{}, "Add Linux capabilities")
 	f.StringArrayVar(&c.CapDrop, "cap-drop", []string{}, "Drop Linux capabilities")
@@ -135,7 +136,7 @@ func (c *ExportCommand) FlagSet() *flag.FlagSet {
 	f.StringVar(&c.DetachKeys, "detach-keys", "", "Override the key sequence for detaching a container")
 	f.StringVar(&c.Domainname, "domainname", "", "Container NIS domain name")
 	f.StringVar(&c.Entrypoint, "entrypoint", "", "Overwrite the default ENTRYPOINT of the image")
-	f.StringVar(&c.Gpus, "string", "", "GPU devices to add to the container ('all' to pass all GPUs)")
+	f.StringVar(&c.Gpus, "gpus", "", "GPU devices to add to the container ('all' to pass all GPUs)")
 	f.StringVar(&c.HealthCmd, "health-cmd", "", "Command to run to check health")
 	f.StringVar(&c.HealthInterval, "health-interval", "0s", "Time between running the check (ms|s|m|h)")
 	f.StringVar(&c.HealthStartPeriod, "health-start-period", "0s", "Start period for the container to initialize before starting health-retries countdown (ms|s|m|h)")
@@ -172,6 +173,7 @@ func (c *ExportCommand) AutocompleteFlags() complete.Flags {
 		c.AutocompleteGlobalFlags(),
 		complete.Flags{
 			"--add-host":              complete.PredictAnything,
+			"--annotation":            complete.PredictAnything,
 			"--attach":                complete.PredictAnything,
 			"--blkio-weight-device":   complete.PredictAnything,
 			"--blkio-weight":          complete.PredictAnything,
