@@ -2,6 +2,7 @@ package arguments
 
 type Args struct {
 	AddHost             []string
+	Annotation          []string
 	Attach              []string
 	BlkioWeight         int
 	BlkioWeightDevice   []string

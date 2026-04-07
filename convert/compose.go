@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compose-spec/compose-go/types"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/go-units"
 	"github.com/hashicorp/go-multierror"
 	"github.com/josegonzalez/cli-skeleton/command"
@@ -27,14 +27,26 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		Name: "app",
 	}
 
-	service.ExtraHosts = map[string]string{}
+	service.ExtraHosts = types.HostsList{}
 	for _, hostMap := range c.AddHost {
 		parts := strings.SplitN(hostMap, ":", 2)
-		service.ExtraHosts[parts[0]] = parts[1]
+		service.ExtraHosts[parts[0]] = []string{parts[1]}
+	}
+
+	if len(c.Annotation) > 0 {
+		service.Annotations = types.Mapping{}
+		for _, annotation := range c.Annotation {
+			parts := strings.SplitN(annotation, "=", 2)
+			if len(parts) == 2 {
+				service.Annotations[parts[0]] = parts[1]
+			} else {
+				service.Annotations[parts[0]] = ""
+			}
+		}
 	}
 
 	if len(c.Attach) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --attach property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --attach property in compose spec as the property is not supported"))
 	}
 
 	if c.BlkioWeight != 0 {
@@ -140,29 +152,37 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	service.CapDrop = c.CapDrop
 
 	if len(c.Cgroupns) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cgroupns property in compose spec as the property is not valid in compose v3"))
+		service.Cgroup = c.Cgroupns
 	}
 
 	service.CgroupParent = c.CgroupParent
 
 	if len(c.Cidfile) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cidfile property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cidfile property in compose spec as the property is not supported"))
 	}
 
 	if c.CpuPeriod > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-period property in compose spec as the property is not valid in compose v3"))
+		service.CPUPeriod = int64(c.CpuPeriod)
 	}
 
 	if c.CpuQuota > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-quota property in compose spec as the property is not valid in compose v3"))
+		service.CPUQuota = int64(c.CpuQuota)
 	}
 
 	if c.CpuRtPeriod > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-rt-period property in compose spec as the property is not valid in compose v3"))
+		service.CPURTPeriod = int64(c.CpuRtPeriod)
 	}
 
 	if c.CpuRtRuntime > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpu-rt-runtime property in compose spec as the property is not valid in compose v3"))
+		service.CPURTRuntime = int64(c.CpuRtRuntime)
+	}
+
+	if c.Cpus > 0 {
+		service.CPUS = c.Cpus
+	}
+
+	if c.Memory > 0 {
+		service.MemLimit = types.UnitBytes(c.Memory)
 	}
 
 	if c.Cpus > 0 || c.Memory > 0 {
@@ -175,7 +195,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		}
 
 		if c.Cpus > 0 {
-			service.Deploy.Resources.Limits.NanoCPUs = fmt.Sprintf("%f", c.Cpus)
+			service.Deploy.Resources.Limits.NanoCPUs = types.NanoCPUs(c.Cpus)
 		}
 
 		if c.Memory > 0 {
@@ -183,24 +203,40 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		}
 	}
 
+	if c.CpuShares > 0 {
+		service.CPUShares = int64(c.CpuShares)
+	}
+
 	if len(c.CpusetCpus) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpuset-cpus property in compose spec as the property is not valid in compose v3"))
+		service.CPUSet = c.CpusetCpus
 	}
 
 	if len(c.CpusetMems) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpuset-mems property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --cpuset-mems property in compose spec as the property is not supported"))
 	}
 
 	if c.Detach {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach property in compose spec as the property is not supported"))
 	}
 
 	if len(c.DetachKeys) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach-keys property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --detach-keys property in compose spec as the property is not supported"))
 	}
 
 	if len(c.Device) > 0 {
-		service.Devices = c.Device
+		for _, device := range c.Device {
+			parts := strings.SplitN(device, ":", 3)
+			dm := types.DeviceMapping{
+				Source: parts[0],
+			}
+			if len(parts) >= 2 {
+				dm.Target = parts[1]
+			}
+			if len(parts) >= 3 {
+				dm.Permissions = parts[2]
+			}
+			service.Devices = append(service.Devices, dm)
+		}
 	}
 
 	if len(c.DeviceCgroupRule) > 0 {
@@ -208,7 +244,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if !c.DisableContentTrust {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --disable-trust-content property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --disable-content-trust property in compose spec as the property is not supported"))
 	}
 
 	service.DNS = c.Dns
@@ -226,11 +262,26 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	service.Environment = types.NewMappingWithEquals(c.Env)
-	service.EnvFile = c.EnvFile
+
+	if len(c.EnvFile) > 0 {
+		for _, f := range c.EnvFile {
+			service.EnvFiles = append(service.EnvFiles, types.EnvFile{
+				Path:     f,
+				Required: true,
+			})
+		}
+	}
+
 	service.Expose = c.Expose
 
 	if len(c.Gpus) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --gpus property in compose spec as the property is not valid in compose v3"))
+		gpuDevice := types.DeviceRequest{
+			Capabilities: []string{"gpu"},
+		}
+		if c.Gpus == "all" {
+			gpuDevice.Count = types.DeviceCount(-1)
+		}
+		service.Gpus = append(service.Gpus, gpuDevice)
 	}
 
 	service.GroupAdd = c.GroupAdd
@@ -261,7 +312,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 			val, err := toDuration(c.HealthInterval)
 			if err != nil {
-				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-interval flag to duration: %w", err))
 			} else {
 				service.HealthCheck.Interval = DurationToPtr(val.(types.Duration))
 			}
@@ -290,7 +341,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 
 			val, err := toDuration(c.HealthStartPeriod)
 			if err != nil {
-				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-timeout flag to duration: %w", err))
+				errs = multierror.Append(errs, fmt.Errorf("unable to parse --health-start-period flag to duration: %w", err))
 			} else {
 				service.HealthCheck.StartPeriod = DurationToPtr(val.(types.Duration))
 			}
@@ -320,7 +371,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.Interactive {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --interactive property in compose spec as the property is not valid in compose v3"))
+		service.StdinOpen = c.Interactive
 	}
 
 	if len(c.Ip) > 0 {
@@ -347,7 +398,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	service.Isolation = c.Isolation
 
 	if c.KernelMemory != 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --kernel-memory property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --kernel-memory property in compose spec as the property is not supported"))
 	}
 
 	if len(c.Label) > 0 {
@@ -363,7 +414,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.LabelFile) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --label-file property in compose spec as the property is not valid in compose v3"))
+		service.LabelFiles = c.LabelFile
 	}
 
 	service.Links = c.Link
@@ -379,10 +430,10 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	service.LogDriver = c.LogDriver
-	if len(c.Label) > 0 {
+	if len(c.LogOpt) > 0 {
 		service.LogOpt = map[string]string{}
-		for _, label := range c.LogOpt {
-			parts := strings.SplitN(label, "=", 2)
+		for _, logOpt := range c.LogOpt {
+			parts := strings.SplitN(logOpt, "=", 2)
 			if len(parts) == 2 {
 				service.LogOpt[parts[0]] = parts[1]
 			} else {
@@ -500,7 +551,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		project.Networks = map[string]types.NetworkConfig{
 			"default": {
 				Name:     c.Network,
-				External: types.External{External: true},
+				External: types.External(true),
 			},
 		}
 	}
@@ -559,19 +610,23 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.PublishAll {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --publish-all property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --publish-all property in compose spec as the property is not supported"))
 	}
 
 	if c.Pull != "missing" {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --pull property in compose spec as images will always be pulled if missing"))
+		service.PullPolicy = c.Pull
 	}
 
 	if c.ReadOnly {
 		service.ReadOnly = c.ReadOnly
 	}
 
+	if c.Restart != "no" && len(c.Restart) > 0 {
+		service.Restart = c.Restart
+	}
+
 	if c.Rm {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --rm property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --rm property in compose spec as the property is not supported"))
 	}
 
 	if len(c.Runtime) > 0 {
@@ -587,7 +642,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if !c.SigProxy {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --sig-proxy property in compose spec as the property is not valid in compose v3"))
+		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --sig-proxy property in compose spec as the property is not supported"))
 	}
 
 	if len(c.StopSignal) > 0 && c.StopSignal != "SIGTERM" {
@@ -595,7 +650,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if c.StopTimeout > 0 {
-		val, err := toDuration(c.StopTimeout)
+		val, err := toDuration(fmt.Sprintf("%ds", c.StopTimeout))
 		if err != nil {
 			errs = multierror.Append(errs, fmt.Errorf("unable to parse --stop-timeout flag to duration: %w", err))
 		} else {
@@ -604,7 +659,15 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 
 	if len(c.StorageOpt) > 0 {
-		warnings = multierror.Append(warnings, fmt.Errorf("unable to set --storage-opt property in compose spec as the property is not valid in compose v3"))
+		service.StorageOpt = map[string]string{}
+		for _, opt := range c.StorageOpt {
+			parts := strings.SplitN(opt, "=", 2)
+			if len(parts) == 2 {
+				service.StorageOpt[parts[0]] = parts[1]
+			} else {
+				service.StorageOpt[parts[0]] = ""
+			}
+		}
 	}
 
 	if len(c.Sysctl) > 0 {
@@ -743,7 +806,9 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 	}
 	service.Image = arguments["image"].StringValue()
 
-	project.Services = append(project.Services, *service)
+	project.Services = types.Services{
+		"app": *service,
+	}
 
 	return project, warnings, errs
 }
