@@ -294,6 +294,13 @@ func (c *ExportCommand) Run(args []string) int {
 
 	if c.format == "compose" {
 		output, warnings, errs = convert.ToCompose(c.project, &c.Args, arguments)
+	} else if c.format == "ecs" || c.format == "ecs-cfn" {
+		ecsOpts := convert.ECSOptions{
+			TaskRoleArn:             c.ecsTaskRoleArn,
+			ExecutionRoleArn:        c.ecsExecutionRoleArn,
+			RequiresCompatibilities: c.ecsRequiresCompatibilities,
+		}
+		output, warnings, errs = convert.ToECS(c.project, &c.Args, arguments, ecsOpts)
 	} else {
 		c.Ui.Error("Invalid dre-format specified")
 		return 1
@@ -313,6 +320,21 @@ func (c *ExportCommand) Run(args []string) int {
 
 	if c.format == "compose" {
 		out, err := convert.MarshalCompose(output.(*types.Project), "yaml")
+		if err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
+		fmt.Println("---")
+		fmt.Println(string(out))
+	} else if c.format == "ecs" {
+		out, err := convert.MarshalECS(output.(*convert.ECSTaskDefinition))
+		if err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
+		fmt.Println(string(out))
+	} else if c.format == "ecs-cfn" {
+		out, err := convert.MarshalECSCloudFormation(output.(*convert.ECSTaskDefinition))
 		if err != nil {
 			c.Ui.Error(err.Error())
 			return 1
