@@ -53,7 +53,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		service.BlkioConfig.WeightDevice = []types.WeightDevice{}
 		for _, weightDevice := range c.BlkioWeightDevice {
 			parts := strings.SplitN(weightDevice, ":", 2)
-			number, _ := strconv.ParseUint(parts[1], 10, 64)
+			number, _ := strconv.ParseUint(parts[1], 10, 16)
 
 			service.BlkioConfig.WeightDevice = append(service.BlkioConfig.WeightDevice, types.WeightDevice{
 				Path:   parts[0],
@@ -110,7 +110,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		service.BlkioConfig.DeviceReadIOps = []types.ThrottleDevice{}
 		for _, deviceReadIop := range c.DeviceReadIops {
 			parts := strings.SplitN(deviceReadIop, ":", 2)
-			number, _ := strconv.ParseUint(parts[1], 10, 64)
+			number, _ := strconv.ParseInt(parts[1], 10, 64)
 
 			service.BlkioConfig.DeviceReadIOps = append(service.BlkioConfig.DeviceReadIOps, types.ThrottleDevice{
 				Path: parts[0],
@@ -127,7 +127,7 @@ func ToCompose(projectName string, c *arguments.Args, arguments map[string]comma
 		service.BlkioConfig.DeviceWriteIOps = []types.ThrottleDevice{}
 		for _, deviceWriteIop := range c.DeviceWriteIops {
 			parts := strings.SplitN(deviceWriteIop, ":", 2)
-			number, _ := strconv.ParseUint(parts[1], 10, 64)
+			number, _ := strconv.ParseInt(parts[1], 10, 64)
 
 			service.BlkioConfig.DeviceWriteIOps = append(service.BlkioConfig.DeviceWriteIOps, types.ThrottleDevice{
 				Path: parts[0],
