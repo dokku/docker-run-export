@@ -1,4 +1,4 @@
-FROM golang:1.26.1-trixie
+FROM golang:1.26.2-trixie
 
 # hadolint ignore=DL3027
 RUN apt-get update \
