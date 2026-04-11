@@ -301,6 +301,15 @@ func (c *ExportCommand) Run(args []string) int {
 			RequiresCompatibilities: c.ecsRequiresCompatibilities,
 		}
 		output, warnings, errs = convert.ToECS(c.project, &c.Args, arguments, ecsOpts)
+	} else if c.format == "nomad" || c.format == "nomad-json" {
+		nomadOpts := convert.NomadOptions{
+			Datacenters: c.nomadDatacenters,
+			Region:      c.nomadRegion,
+			Namespace:   c.nomadNamespace,
+			Type:        c.nomadType,
+			Count:       c.nomadCount,
+		}
+		output, warnings, errs = convert.ToNomad(c.project, &c.Args, arguments, nomadOpts)
 	} else {
 		c.Ui.Error("Invalid dre-format specified")
 		return 1
@@ -340,6 +349,20 @@ func (c *ExportCommand) Run(args []string) int {
 			return 1
 		}
 		fmt.Println("---")
+		fmt.Println(string(out))
+	} else if c.format == "nomad" {
+		out, err := convert.MarshalNomadHCL(output.(*convert.NomadJob))
+		if err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
+		fmt.Println(string(out))
+	} else if c.format == "nomad-json" {
+		out, err := convert.MarshalNomadJSON(output.(*convert.NomadJob))
+		if err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
 		fmt.Println(string(out))
 	} else {
 		c.Ui.Error("Invalid dre-format specified")

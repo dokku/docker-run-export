@@ -16,8 +16,16 @@ concurrency:
 
 jobs:
   build:
-    name: build
-    runs-on: ubuntu-24.04
+    name: build (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
     env:
       GITHUB_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
       PACKAGECLOUD_TOKEN: ${{ secrets.PACKAGECLOUD_TOKEN }}
@@ -34,7 +42,7 @@ jobs:
       - name: upload packages
         uses: actions/upload-artifact@v7
         with:
-          name: build
+          name: build-${{ matrix.arch }}
           path: build/**/*
 
   binary-check:

@@ -21,6 +21,50 @@ jq_s() {
   echo "$output" | awk '/^\{/,0' | jq -r "$1"
 }
 
+# Helper: query the HCL output with dasel. Skips leading non-HCL lines
+# (warnings printed to stderr and merged into $output by bats), parses the
+# HCL with dasel, outputs JSON, and pipes through jq -r so callers get a
+# bare scalar value -- matching the jq_s/yq_s pattern.
+hcl_s() {
+  echo "$output" | awk '/^job "/,0' | dasel -i hcl -o json "$1" | jq -r
+}
+
+# Helper: pipe the HCL portion of $output through `nomad job validate`.
+# Writes to a temp file, validates with a bogus NOMAD_ADDR so the command
+# does local validation only (no agent required), then removes the temp file.
+# Skips the test if the nomad CLI is not installed on this machine.
+nomad_validate_hcl() {
+  if ! command -v nomad >/dev/null 2>&1; then
+    skip "nomad CLI not installed"
+  fi
+  local tmpfile
+  tmpfile="$(mktemp)"
+  # Drop any leading warning lines (stderr merged into $output by bats)
+  # by keeping everything from the first `job "` line onward.
+  echo "$output" | awk '/^job "/,0' >"$tmpfile"
+  NOMAD_ADDR=http://127.0.0.1:1 nomad job validate "$tmpfile"
+  local nomad_status=$?
+  rm -f "$tmpfile"
+  return $nomad_status
+}
+
+# Helper: pipe the JSON portion of $output through `nomad job run -check-index 0 -output`
+# style validation. Uses `nomad job validate` on a temp file so it works for both
+# formats. Skips if nomad is unavailable.
+nomad_validate_json() {
+  if ! command -v nomad >/dev/null 2>&1; then
+    skip "nomad CLI not installed"
+  fi
+  local tmpfile
+  tmpfile="$(mktemp)"
+  # `nomad job validate` can read either HCL or JSON (via `-json`).
+  echo "$output" | awk '/^\{/,0' >"$tmpfile"
+  NOMAD_ADDR=http://127.0.0.1:1 nomad job validate -json "$tmpfile"
+  local nomad_status=$?
+  rm -f "$tmpfile"
+  return $nomad_status
+}
+
 # Basic functionality
 
 @test "basic: image only" {
@@ -1257,4 +1301,823 @@ jq_s() {
   run $DOCKER_RUN_EXPORT_BIN run --dre-format ecs-cfn --dre-ecs-launch-type FARGATE alpine:latest
   [[ "$status" -eq 0 ]]
   [[ "$(yq_s '.Resources.TaskDefinition.Properties.RequiresCompatibilities[0]')" == "FARGATE" ]]
+}
+
+# Nomad JSON Basic Tests
+
+@test "nomad-json basic: image only" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.image')" == "alpine:latest" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Driver')" == "docker" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Name')" == "app" ]]
+  [[ "$(jq_s '.Job.Type')" == "service" ]]
+}
+
+@test "nomad-json basic: valid json output" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json alpine:latest
+  [[ "$status" -eq 0 ]]
+  echo "$output" | jq . >/dev/null 2>&1
+}
+
+@test "nomad-json basic: image with command" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json alpine:latest echo hello
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.args[0]')" == "echo" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.args[1]')" == "hello" ]]
+}
+
+@test "nomad-json basic: job name from project" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-project myapp alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Name')" == "myapp" ]]
+  [[ "$(jq_s '.Job.ID')" == "myapp" ]]
+}
+
+@test "nomad-json basic: task name from --name" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --name mycontainer alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Name')" == "mycontainer" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Name')" == "mycontainer" ]]
+}
+
+@test "nomad-json basic: job name falls back to container name" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --name mycontainer alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Name')" == "mycontainer" ]]
+}
+
+@test "nomad-json basic: entrypoint" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --entrypoint /bin/sh alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.entrypoint[0]')" == "/bin/sh" ]]
+}
+
+# Nomad JSON Networking
+
+@test "nomad-json networking: add-host" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --add-host "myhost:192.168.1.1" alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.extra_hosts[0]')" == "myhost:192.168.1.1" ]]
+}
+
+@test "nomad-json networking: dns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dns 8.8.8.8 --dns 8.8.4.4 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.dns_servers[0]')" == "8.8.8.8" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.dns_servers[1]')" == "8.8.4.4" ]]
+}
+
+@test "nomad-json networking: dns-search" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dns-search example.com alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.dns_search_domains[0]')" == "example.com" ]]
+}
+
+@test "nomad-json networking: hostname" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --hostname myhost alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.hostname')" == "myhost" ]]
+}
+
+@test "nomad-json networking: publish reserved port" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json -p 8080:80 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].ReservedPorts[0].Label')" == "port_80" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].ReservedPorts[0].To')" == "80" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].ReservedPorts[0].Value')" == "8080" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.ports[0]')" == "port_80" ]]
+}
+
+@test "nomad-json networking: publish dynamic port" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json -p 80 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].DynamicPorts[0].Label')" == "port_80" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].DynamicPorts[0].To')" == "80" ]]
+}
+
+@test "nomad-json networking: publish with protocol" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json -p 8080:80/udp alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].ReservedPorts[0].Label')" == "port_80_udp" ]]
+}
+
+@test "nomad-json networking: network host" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --network host alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].Mode')" == "host" ]]
+}
+
+@test "nomad-json networking: network bridge" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --network bridge alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].Mode')" == "bridge" ]]
+}
+
+@test "nomad-json networking: mac-address" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --mac-address 02:42:ac:11:00:02 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mac_address')" == "02:42:ac:11:00:02" ]]
+}
+
+# Nomad JSON Resources
+
+@test "nomad-json resources: cpus to MHz" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --cpus 2 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.CPU')" == "2000" ]]
+}
+
+@test "nomad-json resources: cpu-shares to MHz" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --cpu-shares 1024 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.CPU')" == "1000" ]]
+}
+
+@test "nomad-json resources: memory to MB" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --memory 536870912 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.MemoryMB')" == "512" ]]
+}
+
+# Nomad JSON Env and Labels
+
+@test "nomad-json env: env vars" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json -e FOO=bar -e BAZ=qux alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Env.FOO')" == "bar" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Env.BAZ')" == "qux" ]]
+}
+
+@test "nomad-json labels: docker labels" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json -l com.example.key=value alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.labels."com.example.key"')" == "value" ]]
+}
+
+# Nomad JSON Security
+
+@test "nomad-json security: cap-add" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --cap-add NET_ADMIN alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.cap_add[0]')" == "NET_ADMIN" ]]
+}
+
+@test "nomad-json security: cap-drop" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --cap-drop ALL alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.cap_drop[0]')" == "ALL" ]]
+}
+
+@test "nomad-json security: privileged" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --privileged alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.privileged')" == "true" ]]
+}
+
+@test "nomad-json security: read-only" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --read-only alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.readonly_rootfs')" == "true" ]]
+}
+
+@test "nomad-json security: security-opt" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --security-opt no-new-privileges alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.security_opt[0]')" == "no-new-privileges" ]]
+}
+
+@test "nomad-json security: user" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --user 1000:1000 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].User')" == "1000:1000" ]]
+}
+
+# Nomad JSON Volumes
+
+@test "nomad-json volumes: bind mount" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json -v /host:/container alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.volumes[0]')" == "/host:/container" ]]
+}
+
+@test "nomad-json volumes: read-only volume" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json -v /host:/container:ro alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.volumes[0]')" == "/host:/container:ro" ]]
+}
+
+# Nomad JSON Docker Driver Config
+
+@test "nomad-json config: tty" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --tty alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.tty')" == "true" ]]
+}
+
+@test "nomad-json config: interactive" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --interactive alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.interactive')" == "true" ]]
+}
+
+@test "nomad-json config: workdir" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --workdir /app alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.work_dir')" == "/app" ]]
+}
+
+@test "nomad-json config: sysctl" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --sysctl net.core.somaxconn=16384 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.sysctl."net.core.somaxconn"')" == "16384" ]]
+}
+
+@test "nomad-json config: shm-size" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --shm-size 67108864 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.shm_size')" == "67108864" ]]
+}
+
+@test "nomad-json config: log driver and opts" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --log-driver json-file --log-opt max-size=10m alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.logging.type')" == "json-file" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.logging.config."max-size"')" == "10m" ]]
+}
+
+@test "nomad-json config: ulimit" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --ulimit nofile=1024:2048 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.ulimit.nofile')" == "1024:2048" ]]
+}
+
+@test "nomad-json config: device" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --device /dev/sda:/dev/xvda:rwm alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.devices[0].host_path')" == "/dev/sda" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.devices[0].container_path')" == "/dev/xvda" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.devices[0].cgroup_permissions')" == "rwm" ]]
+}
+
+# Nomad JSON Signal and Timeout
+
+@test "nomad-json signal: stop-signal to KillSignal" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --stop-signal SIGINT alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].KillSignal')" == "SIGINT" ]]
+}
+
+@test "nomad-json signal: stop-timeout to KillTimeout in ns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --stop-timeout 30 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].KillTimeout')" == "30000000000" ]]
+}
+
+# Nomad healthcheck
+
+@test "nomad-json healthcheck: basic" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json \
+    --health-cmd "curl -f http://localhost/" \
+    --health-interval 30s \
+    --health-timeout 10s \
+    --health-retries 3 \
+    --health-start-period 5s \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Name')" == "app" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Provider')" == "consul" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Type')" == "script" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Command')" == "curl" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Args[0]')" == "-f" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Args[1]')" == "http://localhost/" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].TaskName')" == "app" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Interval')" == "30000000000" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Timeout')" == "10000000000" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].CheckRestart.Limit')" == "3" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].CheckRestart.Grace')" == "5000000000" ]]
+}
+
+@test "nomad-json healthcheck: health-cmd only" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --health-cmd "/bin/true" alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Type')" == "script" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Services[0].Checks[0].Command')" == "/bin/true" ]]
+}
+
+@test "nomad-json healthcheck: health-interval without health-cmd warns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --health-interval 30s alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"--health-interval has no effect without --health-cmd"* ]]
+}
+
+@test "nomad-json healthcheck: no-healthcheck sets docker driver healthchecks.disable" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --no-healthcheck alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.healthchecks.disable')" == "true" ]]
+}
+
+# Nomad-specific flags
+
+@test "nomad-json specific: datacenter single" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-nomad-datacenter east alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Datacenters[0]')" == "east" ]]
+}
+
+@test "nomad-json specific: datacenter multiple" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-nomad-datacenter east --dre-nomad-datacenter west alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Datacenters[0]')" == "east" ]]
+  [[ "$(jq_s '.Job.Datacenters[1]')" == "west" ]]
+}
+
+@test "nomad-json specific: region" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-nomad-region us-east alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Region')" == "us-east" ]]
+}
+
+@test "nomad-json specific: namespace" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-nomad-namespace dev alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Namespace')" == "dev" ]]
+}
+
+@test "nomad-json specific: job type batch" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-nomad-type batch alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Type')" == "batch" ]]
+}
+
+@test "nomad-json specific: count" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-nomad-count 3 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Count')" == "3" ]]
+}
+
+# Nomad HCL Output
+
+@test "nomad hcl: basic structure" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project myapp alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.myapp.type')" == "service" ]]
+  [[ "$(hcl_s 'job.myapp.datacenters[0]')" == "dc1" ]]
+  [[ "$(hcl_s 'job.myapp.group.app.count')" == "1" ]]
+  [[ "$(hcl_s 'job.myapp.group.app.task.app.driver')" == "docker" ]]
+  [[ "$(hcl_s 'job.myapp.group.app.task.app.config.image')" == "alpine:latest" ]]
+}
+
+@test "nomad hcl: port block" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad -p 8080:80 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.app.group.app.network.mode')" == "bridge" ]]
+  [[ "$(hcl_s 'job.app.group.app.network.port.port_80.static')" == "8080" ]]
+  [[ "$(hcl_s 'job.app.group.app.network.port.port_80.to')" == "80" ]]
+}
+
+@test "nomad hcl: env block" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad -e FOO=bar alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.app.group.app.task.app.env.FOO')" == "bar" ]]
+}
+
+@test "nomad hcl: resources block" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --cpus 1 --memory 536870912 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.app.group.app.task.app.resources.cpu')" == "1000" ]]
+  [[ "$(hcl_s 'job.app.group.app.task.app.resources.memory')" == "512" ]]
+}
+
+@test "nomad hcl: kill signal and timeout" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --stop-signal SIGINT --stop-timeout 30 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.app.group.app.task.app.kill_signal')" == "SIGINT" ]]
+  [[ "$(hcl_s 'job.app.group.app.task.app.kill_timeout')" == "30s" ]]
+}
+
+@test "nomad hcl: labels with dotted key" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad -l com.example.key=value alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s "job.app.group.app.task.app.config.labels['com.example.key']")" == "value" ]]
+}
+
+@test "nomad hcl: healthcheck service and check blocks" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad \
+    --health-cmd "curl -f http://localhost/" \
+    --health-interval 30s \
+    --health-timeout 10s \
+    --health-retries 3 \
+    --health-start-period 5s \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.app.group.app.service.name')" == "app" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.provider')" == "consul" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.name')" == "app-health" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.type')" == "script" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.command')" == "curl" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.args[0]')" == "-f" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.args[1]')" == "http://localhost/" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.task')" == "app" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.interval')" == "30s" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.timeout')" == "10s" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.check_restart.limit')" == "3" ]]
+  [[ "$(hcl_s 'job.app.group.app.service.check.check_restart.grace')" == "5s" ]]
+}
+
+# Nomad driver config extras (direct docker driver field mappings)
+
+@test "nomad-json driver config: cpuset-cpus" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --cpuset-cpus 0-3 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.cpuset_cpus')" == "0-3" ]]
+}
+
+@test "nomad-json driver config: init" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --init alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.init')" == "true" ]]
+}
+
+@test "nomad-json driver config: pids-limit" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --pids-limit 100 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.pids_limit')" == "100" ]]
+}
+
+@test "nomad-json driver config: runtime" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --runtime runc alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.runtime')" == "runc" ]]
+}
+
+@test "nomad-json driver config: group-add" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --group-add wheel --group-add disk alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.group_add[0]')" == "wheel" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.group_add[1]')" == "disk" ]]
+}
+
+@test "nomad-json driver config: ip and ip6" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --ip 10.0.0.5 --ip6 ::1 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.ipv4_address')" == "10.0.0.5" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.ipv6_address')" == "::1" ]]
+}
+
+@test "nomad-json driver config: isolation" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --isolation hyperv alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.isolation')" == "hyperv" ]]
+}
+
+@test "nomad-json driver config: uts" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --uts host alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.uts_mode')" == "host" ]]
+}
+
+@test "nomad-json driver config: network-alias" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --network-alias web --network-alias api alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.network_aliases[0]')" == "web" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.network_aliases[1]')" == "api" ]]
+}
+
+@test "nomad-json driver config: oom-score-adj" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --oom-score-adj -500 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.oom_score_adj')" == "-500" ]]
+}
+
+@test "nomad-json driver config: volume-driver" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --volume-driver local alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.volume_driver')" == "local" ]]
+}
+
+@test "nomad-json driver config: cgroupns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --cgroupns host alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.cgroupns')" == "host" ]]
+}
+
+@test "nomad-json driver config: cpu-period" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --cpu-period 100000 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.cpu_cfs_period')" == "100000" ]]
+}
+
+@test "nomad-json driver config: pull always sets force_pull" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --pull always alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.force_pull')" == "true" ]]
+}
+
+@test "nomad-json driver config: pull never warns" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --pull never alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"--pull never is not supported"* ]]
+}
+
+# Nomad restart policy (maps to group-level restart stanza)
+
+@test "nomad-json restart: on-failure with retries" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --restart on-failure:5 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].RestartPolicy.Attempts')" == "5" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].RestartPolicy.Mode')" == "fail" ]]
+}
+
+@test "nomad-json restart: on-failure without retries" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --restart on-failure alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].RestartPolicy.Mode')" == "fail" ]]
+}
+
+@test "nomad-json restart: always approximates with mode=delay" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --restart always alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].RestartPolicy.Mode')" == "delay" ]]
+  [[ "$output" == *"approximated by Nomad mode=delay"* ]]
+}
+
+@test "nomad-json restart: no" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --restart no alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].RestartPolicy.Mode')" == "fail" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].RestartPolicy.Attempts')" == "0" ]]
+}
+
+@test "nomad hcl: restart stanza" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --restart on-failure:3 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.app.group.app.restart.attempts')" == "3" ]]
+  [[ "$(hcl_s 'job.app.group.app.restart.mode')" == "fail" ]]
+}
+
+# Nomad GPU device stanza
+
+@test "nomad-json gpus: integer count" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --gpus 2 nvidia/cuda:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.Devices[0].Name')" == "nvidia/gpu" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.Devices[0].Count')" == "2" ]]
+}
+
+@test "nomad-json gpus: all" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --gpus all nvidia/cuda:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.Devices[0].Name')" == "nvidia/gpu" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.Devices[0].Count')" == "1" ]]
+}
+
+@test "nomad hcl: device block" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --gpus 2 nvidia/cuda:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(hcl_s 'job.app.group.app.task.app.resources.device["nvidia/gpu"].count')" == "2" ]]
+}
+
+# Nomad mount and tmpfs blocks
+
+@test "nomad-json mount: bind" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json \
+    --mount type=bind,source=/host,target=/container,readonly \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].type')" == "bind" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].source')" == "/host" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].target')" == "/container" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].readonly')" == "true" ]]
+}
+
+@test "nomad-json mount: volume with labels" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json \
+    --mount type=volume,source=data,target=/data,volume-label=env=prod \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].type')" == "volume" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].source')" == "data" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].volume_options.labels.env')" == "prod" ]]
+}
+
+@test "nomad-json mount: tmpfs" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json \
+    --mount type=tmpfs,target=/scratch,tmpfs-size=67108864 \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].type')" == "tmpfs" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].target')" == "/scratch" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].tmpfs_options.size')" == "67108864" ]]
+}
+
+@test "nomad-json tmpfs: with size suffix" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --tmpfs '/run:size=64m,mode=1770' alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].type')" == "tmpfs" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].target')" == "/run" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].tmpfs_options.size')" == "67108864" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].tmpfs_options.mode')" == "1016" ]]
+}
+
+@test "nomad-json tmpfs: plain path" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --tmpfs /tmp alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].type')" == "tmpfs" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].target')" == "/tmp" ]]
+}
+
+@test "nomad-json mount: multiple mounts" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json \
+    --mount type=bind,source=/host1,target=/c1 \
+    --mount type=volume,source=data,target=/data \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[0].source')" == "/host1" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.mount[1].source')" == "data" ]]
+}
+
+# Nomad remaining unsupported flag warnings
+
+@test "nomad-json unsupported: expose emits warning" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --expose 8080 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"unable to set --expose property in nomad job spec"* ]]
+}
+
+@test "nomad-json unsupported: blkio-weight emits warning" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --blkio-weight 500 alpine:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"unable to set --blkio-weight property in nomad job spec"* ]]
+}
+
+# Nomad combined flags
+
+@test "nomad-json combined: realistic app" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-project web \
+    -e DB_HOST=db.example.com -p 8080:80 --cpus 1 --memory 536870912 \
+    --hostname web1 --cap-add NET_ADMIN nginx:latest
+  [[ "$status" -eq 0 ]]
+  [[ "$(jq_s '.Job.Name')" == "web" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.image')" == "nginx:latest" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.hostname')" == "web1" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Config.cap_add[0]')" == "NET_ADMIN" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Env.DB_HOST')" == "db.example.com" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.CPU')" == "1000" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Tasks[0].Resources.MemoryMB')" == "512" ]]
+  [[ "$(jq_s '.Job.TaskGroups[0].Networks[0].ReservedPorts[0].Value')" == "8080" ]]
+}
+
+# Nomad CLI validation tests: run output through `nomad job validate` to
+# confirm it matches Nomad's own schema. These tests skip when the nomad
+# binary is not installed (e.g., local dev without brew install nomad).
+
+@test "nomad validate: minimal hcl" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project myapp alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: minimal json" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-project myapp alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_json
+}
+
+@test "nomad validate: hcl with command and env" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project worker \
+    -e FOO=bar -e BAZ=qux alpine:latest echo hello
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with reserved and dynamic ports" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project web \
+    -p 8080:80 -p 443 -p 53:53/udp nginx:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: json with reserved and dynamic ports" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-project web \
+    -p 8080:80 -p 443 -p 53:53/udp nginx:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_json
+}
+
+@test "nomad validate: hcl with resources and signals" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project svc \
+    --cpus 1.5 --memory 536870912 --stop-signal SIGINT --stop-timeout 30 alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with dns volumes workdir" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project net \
+    --add-host "db:10.0.0.5" --dns 8.8.8.8 --hostname web1 \
+    -v /host/data:/data -v /host/logs:/logs:ro --workdir /app alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with caps and security" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project sec \
+    --cap-add NET_ADMIN --cap-drop ALL --privileged --read-only \
+    --security-opt no-new-privileges --user 1000:1000 alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with logging and sysctl" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project logs \
+    --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+    --sysctl net.core.somaxconn=16384 --ulimit nofile=1024:2048 \
+    --shm-size 67108864 alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with labels containing dots" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project labeled \
+    -l com.example.key=value -l plain=true alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with nomad options" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project configured \
+    --dre-nomad-datacenter east --dre-nomad-datacenter west \
+    --dre-nomad-region us --dre-nomad-namespace dev \
+    --dre-nomad-type batch --dre-nomad-count 3 alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with healthcheck" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project healthy \
+    --health-cmd "curl -f http://localhost/" --health-interval 30s \
+    --health-timeout 10s --health-retries 3 --health-start-period 5s \
+    nginx:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: json with healthcheck" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-project healthy \
+    --health-cmd "curl -f http://localhost/" --health-interval 30s \
+    --health-timeout 10s --health-retries 3 --health-start-period 5s \
+    nginx:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_json
+}
+
+@test "nomad validate: hcl combined realistic app" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project web \
+    -e DB_HOST=db.example.com -p 8080:80 --cpus 1 --memory 536870912 \
+    --hostname web1 --cap-add NET_ADMIN nginx:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: json combined realistic app" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad-json --dre-project web \
+    -e DB_HOST=db.example.com -p 8080:80 --cpus 1 --memory 536870912 \
+    --hostname web1 --cap-add NET_ADMIN nginx:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_json
+}
+
+@test "nomad validate: hcl with driver config extras" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project extras \
+    --cpuset-cpus 0-3 --init --pids-limit 100 --runtime runc \
+    --group-add wheel --uts host --network-alias web --oom-score-adj -500 \
+    --volume-driver local --cgroupns host --cpu-period 100000 --pull always \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with restart policy" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project restarter \
+    --restart on-failure:3 alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with gpus" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project gpuapp \
+    --gpus 2 nvidia/cuda:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
+}
+
+@test "nomad validate: hcl with mount blocks" {
+  run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --dre-project mounted \
+    --mount type=bind,source=/host,target=/container,readonly \
+    --mount type=volume,source=data,target=/data \
+    --mount type=tmpfs,target=/scratch,tmpfs-size=67108864 \
+    --tmpfs '/run:size=64m,mode=1770' \
+    alpine:latest
+  [[ "$status" -eq 0 ]]
+  nomad_validate_hcl
 }
