@@ -1,7 +1,12 @@
 #!/usr/bin/env bats
 
 export SYSTEM_NAME="$(uname -s | tr '[:upper:]' '[:lower:]')"
-export DOCKER_RUN_EXPORT_BIN="build/$SYSTEM_NAME/docker-run-export-amd64"
+case "$(uname -m)" in
+x86_64 | amd64) export SYSTEM_ARCH="amd64" ;;
+aarch64 | arm64) export SYSTEM_ARCH="arm64" ;;
+*) export SYSTEM_ARCH="amd64" ;;
+esac
+export DOCKER_RUN_EXPORT_BIN="build/$SYSTEM_NAME/docker-run-export-$SYSTEM_ARCH"
 
 setup_file() {
   make prebuild $DOCKER_RUN_EXPORT_BIN
