@@ -15,7 +15,8 @@ go build
 - docker `docker-compose.yml` 3.7: [Docs](/docs/compose.md)
 - ecs `task-definition.json`: [Docs](/docs/ecs.md)
 - ecs-cfn CloudFormation `AWS::ECS::TaskDefinition`: [Docs](/docs/ecs.md)
-- nomad `job.json` (planned)
+- nomad `job.nomad` HCL: [Docs](/docs/nomad.md)
+- nomad-json `job.json`: [Docs](/docs/nomad.md)
 - kubernetes `deployment.yml`: Use [kompose](https://kompose.io/)
 
 ## Usage

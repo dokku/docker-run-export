@@ -186,6 +186,7 @@ validate:
 	ls -lah build/deb validation
 	sha1sum build/deb/$(NAME)_$(VERSION)_amd64.deb
 	sha1sum build/deb/$(NAME)_$(VERSION)_arm64.deb
+	go test ./...
 	bats test.bats
 
 prebuild:
