@@ -16,6 +16,9 @@ RUN apt-get update \
     && unzip -o /tmp/nomad.zip -d /usr/local/bin/ \
     && chmod +x /usr/local/bin/nomad \
     && rm -f /tmp/nomad.zip \
+    && curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-28.0.4.tgz \
+    && tar --strip-components=1 -xvzf docker-28.0.4.tgz -C /usr/local/bin \
+    && rm docker-28.0.4.tgz \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
