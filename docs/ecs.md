@@ -1,5 +1,7 @@
 # ECS
 
+Amazon Elastic Container Service (ECS) runs Docker containers on AWS. docker-run-export generates either a standalone ECS task definition (JSON) or a CloudFormation template containing an `AWS::ECS::TaskDefinition` resource. This lets you take a `docker run` command that works locally and produce the configuration AWS needs to run the same container in the cloud.
+
 ## Task Definition JSON (`--dre-format ecs`)
 
 ```shell
@@ -69,7 +71,7 @@ Resources:
 
 ## ECS-Specific Flags
 
-These flags have no `docker run` equivalent and are prefixed with `dre-ecs-`:
+These flags have no `docker run` equivalent and are prefixed with `dre-ecs-`. They are also listed in the [Command Reference](command-reference.md#dre-flags).
 
 - `--dre-ecs-task-role-arn`: IAM role ARN for the task (maps to `taskRoleArn`)
 - `--dre-ecs-execution-role-arn`: IAM role ARN for the ECS agent (maps to `executionRoleArn`)

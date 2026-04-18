@@ -1,5 +1,7 @@
 # Nomad
 
+HashiCorp Nomad is a workload orchestrator that schedules containers, VMs, and other tasks across a cluster of machines. docker-run-export generates a Nomad job specification from your `docker run` flags, using the Docker task driver. The output is available in HCL (the native Nomad configuration format) or JSON (for the Nomad HTTP API).
+
 ## Job Spec HCL (`--dre-format nomad`)
 
 ```shell
@@ -94,7 +96,7 @@ output
 
 ## Nomad-Specific Flags
 
-These flags have no `docker run` equivalent and are prefixed with `dre-nomad-`:
+These flags have no `docker run` equivalent and are prefixed with `dre-nomad-`. They are also listed in the [Command Reference](command-reference.md#dre-flags).
 
 - `--dre-nomad-datacenter`: Nomad datacenter(s); can be passed multiple times. Defaults to `dc1`.
 - `--dre-nomad-region`: Nomad region (maps to `Region`).
