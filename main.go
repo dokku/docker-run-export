@@ -25,9 +25,21 @@ func main() {
 func Run(args []string) int {
 	ctx := context.Background()
 	commandMeta := command.SetupRun(ctx, AppName, Version, args)
+
+	cliArgs := os.Args[1:]
+	// When invoked by `docker <plugin-name> ...`, Docker CLI prepends the
+	// plugin name as argv[1] and sets DOCKER_CLI_PLUGIN_ORIGINAL_CLI_COMMAND.
+	// Strip the prepended name only in that case so direct invocations keep
+	// their args intact.
+	if os.Getenv("DOCKER_CLI_PLUGIN_ORIGINAL_CLI_COMMAND") != "" &&
+		len(os.Args) > 1 && os.Args[1] == "dre" {
+		cliArgs = os.Args[2:]
+	}
+
 	c := cli.NewCLI(AppName, Version)
-	c.Args = os.Args[1:]
+	c.Args = cliArgs
 	c.Commands = command.Commands(ctx, commandMeta, Commands)
+	c.HiddenCommands = []string{"docker-cli-plugin-metadata"}
 	exitCode, err := c.Run()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing CLI: %s\n", err.Error())
@@ -40,6 +52,9 @@ func Run(args []string) int {
 // Returns a list of implemented commands
 func Commands(ctx context.Context, meta command.Meta) map[string]cli.CommandFactory {
 	return map[string]cli.CommandFactory{
+		"docker-cli-plugin-metadata": func() (cli.Command, error) {
+			return &commands.DockerCliPluginMetadataCommand{Meta: meta, Version: Version}, nil
+		},
 		"run": func() (cli.Command, error) {
 			return &commands.ExportCommand{Meta: meta}, nil
 		},
