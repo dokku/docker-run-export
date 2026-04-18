@@ -1,0 +1,7 @@
+docs:
+  - getting-started.md
+  - command-reference.md
+  - compose.md
+  - ecs.md
+  - nomad.md
+  - docker-cli-plugin.md

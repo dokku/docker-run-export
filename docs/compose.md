@@ -1,10 +1,14 @@
 # Compose
 
-```shell
-docker-run-export run --dre-project derp --add-host "somehost:162.242.195.82" --cap-add DERP --cpus 5 --expose 5:5 alpine:latest key echo "hi derp"
+Docker Compose is a tool for defining multi-container applications with a YAML file. docker-run-export generates a Compose service definition from your `docker run` flags, which you can save to a `docker-compose.yml` and run with `docker compose up`.
+
+## Example
+
+```bash
+docker-run-export run --dre-project derp --dre-format compose --add-host "somehost:162.242.195.82" --cap-add DERP --cpus 5 --expose 5:5 alpine:latest key echo "hi derp"
 ```
 
-output
+output:
 
 ```yaml
 ---
@@ -29,13 +33,17 @@ services:
     image: alpine:latest
 ```
 
+Each `docker run` flag maps to a Compose YAML field. For example, `--cap-add` becomes `cap_add`, `--cpus` becomes both `cpus` and `deploy.resources.limits.cpus`, and `--add-host` becomes `extra_hosts`.
+
 ## Unsupported Flags
 
-Unsupported `docker run` flags:
+### Parser Limitations
 
-- `-h`: (hostname) detected as help. Use `--hostname` instead.
+- `-h`: detected as help by the flag parser. Use `--hostname` instead.
 
-Not supported by the Compose Specification:
+### Not Supported by the Compose Specification
+
+These flags have no equivalent in the Compose specification and are ignored with a warning:
 
 - `--attach`
 - `--cidfile`
@@ -48,12 +56,12 @@ Not supported by the Compose Specification:
 - `--rm`
 - `--sig-proxy`
 
-Partially implemented:
+### Partially Implemented
 
-- `--mount`: The following options are not supported:
+- `--mount`: The following mount options are not supported:
   - `bind-nonrecursive`
   - `volume-driver`
   - `volume-label`
   - `volume-opt`
   - `tmpfs-mode`
-- `--volume`: does not properly parse windows paths
+- `--volume`: does not properly parse Windows paths.
