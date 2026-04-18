@@ -1,10 +1,12 @@
 #!/usr/bin/env bats
 
+bats_require_minimum_version 1.5.0
+
 export SYSTEM_NAME="$(uname -s | tr '[:upper:]' '[:lower:]')"
 case "$(uname -m)" in
-x86_64 | amd64) export SYSTEM_ARCH="amd64" ;;
-aarch64 | arm64) export SYSTEM_ARCH="arm64" ;;
-*) export SYSTEM_ARCH="amd64" ;;
+  x86_64 | amd64) export SYSTEM_ARCH="amd64" ;;
+  aarch64 | arm64) export SYSTEM_ARCH="arm64" ;;
+  *) export SYSTEM_ARCH="amd64" ;;
 esac
 export DOCKER_RUN_EXPORT_BIN="build/$SYSTEM_NAME/docker-run-export-$SYSTEM_ARCH"
 
@@ -13,7 +15,13 @@ setup_file() {
 }
 
 teardown_file() {
+  rm -f "$HOME/.docker/cli-plugins/docker-dre"
   make clean
+}
+
+setup() {
+  mkdir -p "$HOME/.docker/cli-plugins"
+  cp "$DOCKER_RUN_EXPORT_BIN" "$HOME/.docker/cli-plugins/docker-dre"
 }
 
 # Helper: query the YAML portion of the output with yq
@@ -2125,4 +2133,82 @@ nomad_validate_json() {
     alpine:latest
   [[ "$status" -eq 0 ]]
   nomad_validate_hcl
+}
+
+@test "[plugin] docker-cli-plugin-metadata returns valid JSON" {
+  run "$DOCKER_RUN_EXPORT_BIN" docker-cli-plugin-metadata
+  echo "output: $output"
+  echo "status: $status"
+  assert_success
+
+  run /bin/bash -c "'$DOCKER_RUN_EXPORT_BIN' docker-cli-plugin-metadata | jq -r .SchemaVersion"
+  assert_success
+  assert_output "0.1.0"
+
+  run /bin/bash -c "'$DOCKER_RUN_EXPORT_BIN' docker-cli-plugin-metadata | jq -e '.Vendor != \"\"'"
+  assert_success
+
+  run /bin/bash -c "'$DOCKER_RUN_EXPORT_BIN' docker-cli-plugin-metadata | jq -e '.ShortDescription != \"\"'"
+  assert_success
+}
+
+@test "[plugin] docker-cli-plugin-metadata is hidden from --help" {
+  run /bin/bash -c "'$DOCKER_RUN_EXPORT_BIN' --help 2>&1"
+  echo "output: $output"
+  echo "status: $status"
+  [[ "$output" != *"docker-cli-plugin-metadata"* ]] || flunk "expected --help not to list docker-cli-plugin-metadata"
+}
+
+@test "[plugin] docker dre version" {
+  run docker dre version
+  echo "output: $output"
+  echo "status: $status"
+  assert_success
+  [[ -n "$output" ]] || flunk "expected non-empty version output"
+}
+
+@test "[plugin] docker dre run" {
+  run docker dre run --dre-format compose --dre-project testapp alpine:latest echo hello
+  echo "output: $output"
+  echo "status: $status"
+  assert_success
+  assert_output_contains "services:"
+}
+
+@test "[plugin] direct invocation without prefix still works" {
+  run "$DOCKER_RUN_EXPORT_BIN" version
+  echo "output: $output"
+  echo "status: $status"
+  assert_success
+}
+
+flunk() {
+  {
+    if [[ "$#" -eq 0 ]]; then
+      cat -
+    else
+      echo "$@"
+    fi
+  } >&2
+  return 1
+}
+
+assert_success() {
+  if [[ "$status" -ne 0 ]]; then
+    flunk "command failed with exit status $status"
+  fi
+}
+
+assert_output() {
+  local expected="$1"
+  if [[ "$output" != "$expected" ]]; then
+    flunk "expected output: $expected\nactual output: $output"
+  fi
+}
+
+assert_output_contains() {
+  local expected="$1"
+  if [[ "$output" != *"$expected"* ]]; then
+    flunk "expected output to contain: $expected\nactual output: $output"
+  fi
 }
