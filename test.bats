@@ -1676,7 +1676,7 @@ nomad_validate_json() {
   [[ "$status" -eq 0 ]]
   [[ "$(hcl_s 'job.myapp.type')" == "service" ]]
   [[ "$(hcl_s 'job.myapp.datacenters[0]')" == "dc1" ]]
-  [[ "$(hcl_s 'job.myapp.group.app.count')" == "1" ]]
+  [[ "$(hcl_s 'job.myapp.group.app["count"]')" == "1" ]]
   [[ "$(hcl_s 'job.myapp.group.app.task.app.driver')" == "docker" ]]
   [[ "$(hcl_s 'job.myapp.group.app.task.app.config.image')" == "alpine:latest" ]]
 }
@@ -1888,7 +1888,7 @@ nomad_validate_json() {
 @test "nomad hcl: device block" {
   run $DOCKER_RUN_EXPORT_BIN run --dre-format nomad --gpus 2 nvidia/cuda:latest
   [[ "$status" -eq 0 ]]
-  [[ "$(hcl_s 'job.app.group.app.task.app.resources.device["nvidia/gpu"].count')" == "2" ]]
+  [[ "$(hcl_s 'job.app.group.app.task.app.resources.device["nvidia/gpu"]["count"]')" == "2" ]]
 }
 
 # Nomad mount and tmpfs blocks
