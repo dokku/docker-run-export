@@ -13,7 +13,7 @@ require (
 	github.com/mitchellh/cli v1.1.5
 	github.com/posener/complete v1.2.3
 	github.com/spf13/pflag v1.0.10
-	github.com/zclconf/go-cty v1.18.1
+	github.com/zclconf/go-cty v1.19.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -32,6 +32,7 @@ require (
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
+	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
