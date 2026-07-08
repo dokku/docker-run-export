@@ -1,4 +1,4 @@
-FROM golang:1.26.4-trixie
+FROM golang:1.27rc2-trixie
 
 ARG NOMAD_VERSION=1.11.3
 
