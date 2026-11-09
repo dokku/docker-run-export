@@ -12,7 +12,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.16
 	github.com/mitchellh/cli v1.1.5
 	github.com/posener/complete v1.2.3
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/zclconf/go-cty v1.19.0
 	gopkg.in/yaml.v2 v2.4.0
 )
